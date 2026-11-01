@@ -10,6 +10,10 @@ const ORDER = [2, 3, 0, 1];                 // colonnes du tableau d'enchères :
 const SPEED = { lent: 1.6, normal: 1, rapide: 0.55 };
 
 let G = load();
+// votre portrait (photo, prénom, situation) : rangé à part pour ne pas réécrire la photo à chaque carte jouée
+const PROFILE_KEY = 'bridge-marianne-profil';
+let P = (() => { try { return JSON.parse(localStorage.getItem(PROFILE_KEY)) || {}; } catch (e) { return {}; } })();
+function saveProfile() { try { localStorage.setItem(PROFILE_KEY, JSON.stringify(P)); return true; } catch (e) { return false; } }
 let screen = 'home';
 let runToken = 0;
 let robotPending = false;   // un robot est déjà en train de réfléchir (jamais deux à la fois)
@@ -35,7 +39,12 @@ const say = t => { if (B.sound) B.sound.speak(t); };
 function load() {
   try {
     const x = JSON.parse(localStorage.getItem(STORE));
-    if (x && x.settings) { x.settings = Object.assign({}, DEFAULTS, x.settings); x.stats = x.stats || { history: [] }; return x; }
+    if (x && x.settings) {
+      x.settings = Object.assign({}, DEFAULTS, x.settings);
+      x.stats = x.stats || { history: [] };
+      if (!x.stats.me) x.stats.me = { v: x.stats.history.filter(h => h.ns > 0).length, d: x.stats.history.filter(h => h.ns < 0).length };
+      return x;
+    }
   } catch (e) { /* stockage indisponible */ }
   return { settings: Object.assign({}, DEFAULTS), stats: { history: [] }, game: null, nextBoard: 1 };
 }
@@ -46,9 +55,20 @@ const su = s => `<svg class="su su${s}" aria-hidden="true"><use href="#su${s}"/>
 // remplace les symboles ♠♥♦♣ des textes par les dessins (évite les émojis sur iPad)
 const rich = t => String(t == null ? '' : t).replace(/[♠♥♦♣]/g, ch => su('♠♥♦♣'.indexOf(ch)));
 const SEATN = ['Nord', 'Est', 'Sud', 'Ouest'];
-// les adversaires Est et Ouest ont un nom et un visage, tirés au sort à chaque donne
-const opp = s => B.PERSOS[((G.game && G.game.opp ? G.game.opp[s === 1 ? 0 : 1] : s) + B.PERSOS.length) % B.PERSOS.length];
-const nameOf = s => s === 2 ? 'vous' : s === 0 ? 'Nord' : opp(s).name;
+// le partenaire (Nord) et les adversaires (Est, Ouest) ont un nom et un visage, tirés au sort à chaque donne
+function persoIdx(s) {
+  const g = G.game;
+  if (!g || !g.opp) return s;
+  if (s === 1) return g.opp[0];
+  if (s === 3) return g.opp[1];
+  if (g.nord != null) return g.nord;
+  let i = 0;
+  while (g.opp.includes(i)) i++;
+  return i;
+}
+const perso = s => B.PERSOS[persoIdx(s) % B.PERSOS.length];
+const nameOf = s => s === 2 ? 'vous' : perso(s).name;
+const esc = t => String(t == null ? '' : t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const seatName = s => s === 2 ? 'Vous' : nameOf(s);
 const FICHE_PAGES = { '01': 3, '02': 1, '03': 1, '04': 2, '05': 1, '06': 2, '07': 3, '08': 2, '09': 2, '10': 2, '11': 2, '12': 2, '13': 2 };
 const ficheBtn = f => FICHE_PAGES[f] ? `<button class="btn fiche-link" data-fiche="${f}">${ICONS.book}<span>Ouvrir la fiche du cours n° ${f} : ${rich(B.FICHES[f])}</span></button>` : '';
@@ -100,7 +120,7 @@ function modal(html, onClick, cls) {
   ov.addEventListener('click', e => {
     const b = e.target.closest('[data-m]');
     if (b) { const v = b.dataset.m; closeModal(); if (onClick) onClick(v); return; }
-    if (e.target === ov) closeModal();
+    if (e.target === ov && !/\bprofil\b/.test(cls || '')) closeModal();
   });
 }
 function closeModal() { $modal.innerHTML = ''; }
@@ -122,12 +142,14 @@ function newDeal(sameHands) {
     }
   }
   const info = B.boardInfo(board);
-  let oppIdx = sameHands && G.game && G.game.opp;
-  if (!oppIdx) {
-    const a = Math.floor(Math.random() * B.PERSOS.length);
-    oppIdx = [a, (a + 1 + Math.floor(Math.random() * (B.PERSOS.length - 1))) % B.PERSOS.length];
+  // trois personnages différents : Est, Ouest et le partenaire Nord
+  let picks = sameHands && G.game && G.game.opp && G.game.nord != null ? [G.game.opp[0], G.game.opp[1], G.game.nord] : null;
+  if (!picks) {
+    const pool = B.PERSOS.map((_, i) => i);
+    for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+    picks = pool.slice(0, 3);
   }
-  G.game = { board, dealer: info.dealer, vul: info.vul, hands, auction: [], phase: 'bidding', play: null, contract: null, undo: [], selCall: null, result: null, recorded: false, opp: oppIdx };
+  G.game = { board, dealer: info.dealer, vul: info.vul, hands, auction: [], phase: 'bidding', play: null, contract: null, undo: [], selCall: null, result: null, recorded: false, opp: [picks[0], picks[1]], nord: picks[2] };
   thinking = -1; holdTrick = false; bidLevel = null; selected = null; hintCard = null; lastPlayed = null;
   fly = null; dealAnim = true; dummyRevealKey = null; newBidIdx = -1; robotActed = true; shownWon = [0, 0];
   screen = 'game';
@@ -135,7 +157,10 @@ function newDeal(sameHands) {
   snd('shuffle');
   dealing = anim();
   render();
-  if (!sameHands) toast(`Vos adversaires : <b>${opp(3).name}</b>, ${opp(3).title} (Ouest), et <b>${opp(1).name}</b>, ${opp(1).title} (Est).`, 4200);
+  if (!sameHands) {
+    const who = P.name ? `<b>${esc(P.name)}</b>${P.title ? ', ' + esc(P.title) + ',' : ''} joue` : 'Vous jouez';
+    toast(`${who} avec <b>${perso(0).name}</b>, ${perso(0).title}, contre <b>${perso(3).name}</b>, ${perso(3).title}, et <b>${perso(1).name}</b>, ${perso(1).title}.`, 5200);
+  }
   const tok = runToken;
   setTimeout(() => { if (tok !== runToken) return; dealing = false; step(); }, dealing ? 900 : 0);
 }
@@ -254,8 +279,8 @@ function finishAuction() {
   const decl = ct.declarer;
   const ns = B.sideOf(decl) === 0;
   let msg = `Contrat : <b>${contractHTML(ct)}</b> joué par ${nameOf(decl)}.`;
-  if (ns && decl === 0) msg += '<br>Vous jouez les deux mains (Nord et Sud).';
-  else if (ns) msg += '<br>Vous jouez aussi les cartes du mort (Nord).';
+  if (ns && decl === 0) msg += `<br>Vous jouez les deux mains : la vôtre et celle de ${nameOf(0)}.`;
+  else if (ns) msg += `<br>Vous jouez aussi les cartes du mort (${nameOf(0)}).`;
   else msg += (g.play.leader === 2 ? '<br>C\'est à vous d\'entamer.' : '<br>' + nameOf(g.play.leader) + ' entame.');
   toast(msg, 4200);
   say('Contrat : ' + B.sound.callWords(ct.level + ct.den) + (ct.dbl === 2 ? ' surcontré' : ct.dbl === 1 ? ' contré' : '') + ', joué par ' + nameOf(decl) + '.');
@@ -289,9 +314,27 @@ function record() {
     contract: ct ? { level: ct.level, den: ct.den, dbl: ct.dbl, declarer: ct.declarer } : null,
     tricks: g.result.tricks || 0, made: !!g.result.made, ns: g.result.ns,
     role: !ct ? 'passée' : ct.declarer === 2 ? 'déclarant' : ct.declarer === 0 ? 'déclarant (Nord)' : 'défense',
+    n: perso(0).name, e: perso(1).name, o: perso(3).name,
   });
+  tally(h[h.length - 1], 1);
   if (h.length > 300) h.shift();
 }
+// victoire = marque positive pour notre camp ; on compte avec le partenaire et contre chaque adversaire
+function tally(x, sign) {
+  if (!x || !x.ns) return;
+  const k = x.ns > 0 ? 'v' : 'd';
+  const me = G.stats.me = G.stats.me || { v: 0, d: 0 };
+  me[k] = Math.max(0, (me[k] || 0) + sign);
+  if (!x.n) return;
+  const wl = G.stats.wl = G.stats.wl || {};
+  const add = (name, key) => { const r = wl[name] = wl[name] || {}; r[key] = Math.max(0, (r[key] || 0) + sign); };
+  add(x.n, 'p' + k); add(x.e, k); add(x.o, k);
+}
+function wlOf(name, partner) {
+  const r = (G.stats.wl || {})[name] || {};
+  return partner ? { v: r.pv || 0, d: r.pd || 0 } : { v: r.v || 0, d: r.d || 0 };
+}
+const wlHTML = w => `<span class="wl"><i class="w">✓ ${w.v}</i><i class="l">✗ ${w.d}</i></span>`;
 
 /* ---------- Actions de l'utilisatrice ---------- */
 function submitCall(call, force) {
@@ -328,7 +371,7 @@ function tapCard(seat, c, fromLoupe) {
   const p = g.play;
   if (!userControls(seat)) return;
   if (p.turn !== seat) {
-    if (userControls(p.turn)) toast(p.turn === 0 ? 'C\'est au tour du mort (Nord) : jouez une carte en haut.' : 'C\'est à votre main (Sud) de jouer : jouez une carte en bas.');
+    if (userControls(p.turn)) toast(p.turn === 0 ? `C'est au tour de ${nameOf(0)} : jouez une de ses cartes, en haut.` : 'C\'est à votre main (Sud) de jouer : jouez une carte en bas.');
     else toast('Attendez : c\'est au tour de ' + nameOf(p.turn) + '.');
     return;
   }
@@ -357,7 +400,7 @@ function loupe(c, cards) {
   const room = Math.min(900, window.innerWidth - 40) - 48;
   const cw = Math.max(56, Math.min(130, (room - (n - 1) * 12) / n));
   snd('select');
-  modal(`<h2>Les ${su(s)} ${g.play.dummy === 0 ? 'du mort' : 'de Nord'}</h2><p>Touchez la carte que vous voulez jouer.</p>
+  modal(`<h2>Les ${su(s)} ${g.play.dummy === 0 ? 'du mort' : 'de ' + nameOf(0)}</h2><p>Touchez la carte que vous voulez jouer.</p>
     <div class="loupe-cards" style="--cw:${cw}px;--ch:${cw * 1.42}px">${list.map((x, i) => `<button class="pick" data-m="${x}" style="animation-delay:${i * 45}ms">${cardHTML(x, x === hintCard ? 'hint' : '')}</button>`).join('')}</div>
     <div class="btns"><button class="btn" data-m="no">Fermer</button></div>`,
   v => { if (v !== 'no') tapCard(0, +v, true); }, 'loupe');
@@ -367,7 +410,7 @@ function undo() {
   if (!g || !g.undo.length) { toast('Il n\'y a rien à annuler.'); return; }
   cancelTimers();
   // une donne annulée après sa fin ne compte plus dans les résultats
-  if (g.recorded) { const h = G.stats.history; if (h.length && h[h.length - 1].board === g.board) h.pop(); }
+  if (g.recorded) { const h = G.stats.history; if (h.length && h[h.length - 1].board === g.board) tally(h.pop(), -1); }
   const s = g.undo.pop();
   Object.assign(g, s);
   g.result = null; g.recorded = false;
@@ -473,6 +516,8 @@ function render() {
   if (screen === 'settings') return renderSettings();
   if (screen === 'stats') return renderStats();
   if (screen === 'help') return renderHelp();
+  if (screen === 'analyse' && G.game) return renderAnalysis();
+  if (screen === 'revue' && G.game && AN.res && AN.res.best !== undefined) return renderReview();
   if (!G.game) { screen = 'home'; return renderHome(); }
   renderGame();
 }
@@ -504,9 +549,10 @@ function renderGame() {
   const hands = phase === 'bidding' || !p ? g.hands : p.hands;
   const role = s => !g.contract || phase === 'bidding' ? '' : s === decl ? 'déclarant' : s === dummy ? 'mort' : 'défense';
   const tag = s => {
-    const cls = `tag ${turn === s && phase !== 'end' ? 'turn' : ''}`;
-    if (s === 1 || s === 3) return `<div class="${cls} perso" data-perso="${s}">${B.avatarSVG(opp(s))}<span class="nm"><b><span class="dot"></span>${opp(s).name}</b><small>${SEATN[s]}${role(s) ? ' · ' + role(s) : ''}</small></span></div>`;
-    return `<div class="${cls}"><span class="dot"></span>${seatName(s)}${role(s) ? ` <span class="role">· ${role(s)}</span>` : ''}</div>`;
+    const cls = `tag perso ${turn === s && phase !== 'end' ? 'turn' : ''}`;
+    const sub = SEATN[s] + (role(s) ? ' · ' + role(s) : s === 0 ? ' · partenaire' : '');
+    if (s === 2) return `<div class="${cls} me" data-me="1">${meAvatar()}<span class="nm"><b><span class="dot"></span>${P.name ? esc(P.name) : 'Vous'}</b><small>${sub}</small></span>${wlHTML(G.stats.me || { v: 0, d: 0 })}</div>`;
+    return `<div class="${cls}" data-perso="${s}">${B.avatarSVG(perso(s))}<span class="nm"><b><span class="dot"></span>${perso(s).name}</b><small>${sub}</small></span>${wlHTML(wlOf(perso(s).name, s === 0))}</div>`;
   };
   const lastCallIdx = s => { for (let i = g.auction.length - 1; i >= 0; i--) if ((g.dealer + i) % 4 === s) return i; return -1; };
   const bubble = s => {
@@ -548,7 +594,7 @@ function renderGame() {
     let msg = '', wait = false;
     if (userTurnSeat >= 0) {
       const isDummy = userTurnSeat === dummy;
-      msg = userTurnSeat === 0 ? (isDummy ? 'À vous :<br><b>carte du mort</b> ↑' : 'À vous :<br><b>carte de Nord</b> ↑')
+      msg = userTurnSeat === 0 ? (isDummy ? 'À vous :<br><b>carte du mort</b> ↑' : `À vous :<br><b>carte de ${nameOf(0)}</b> ↑`)
         : (isDummy ? 'À vous :<br><b>carte du mort</b> ↓' : 'À vous<br><b>de jouer</b> ↓');
     } else if (holdTrick) msg = `Pli pour<br><b>${B.sideOf(w) === 0 ? 'Nord-Sud' : 'Est-Ouest'}</b>`;
     else if (thinking >= 0 && !shown.length) { msg = `${nameOf(thinking)}<br>réfléchit…`; wait = true; }
@@ -674,6 +720,8 @@ const ICONS = {
   undo: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg>',
   last: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="9" height="13" rx="2"/><path d="M12 8l5-2 4 12-5 2"/></svg>',
   claim: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>',
+  cam: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.5"/></svg>',
+  pic: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/></svg>',
   book: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 12h7M9 16h7"/></svg>',
 };
 function actionsHTML() {
@@ -704,10 +752,12 @@ function endScreenHTML() {
   }
   let quip = '';
   if (!r.passed) {
-    const theyWon = (B.sideOf(ct.declarer) === 1) === r.made;
-    const q = opp(g.board % 2 ? 1 : 3);
-    quip = `<div class="quip">${B.avatarSVG(q)}<div><b>${q.name}</b> : « ${theyWon ? q.gagne : q.perd} »</div></div>`;
+    const win = r.ns > 0;   // « vous » gagnez la donne : votre camp marque les points
+    const pa = perso(0), op = perso(g.board % 2 ? 1 : 3);
+    const line = (q, txt, who) => `<div class="quip">${B.avatarSVG(q)}<div><b>${q.name}</b> <small>${who}</small><br>« ${txt} »</div></div>`;
+    quip = `<div class="quips">${line(pa, win ? pa.avecGagne : pa.avecPerd, 'votre partenaire')}${line(op, win ? op.perd : op.gagne, 'adversaire')}</div>`;
   }
+  ensureAnalysis();
   const scoreTxt = r.passed ? '' : `<div class="score">Marque : Nord-Sud <b>${r.ns > 0 ? '+' : ''}${r.ns}</b> · Est-Ouest <b>${r.ns < 0 ? '+' : ''}${-r.ns}</b></div>`;
   const h = g.hands;
   const hbox = (s, cls2) => `<div class="h ${cls2}"><div class="nm">${seatName(s)} <span class="pt">${B.hcp(h[s])} H</span></div>${handText(h[s])}</div>`;
@@ -719,6 +769,7 @@ function endScreenHTML() {
   }
   return `<div class="end"><div class="box">
     <div class="res ${cls}">${res}</div>${scoreTxt}${quip}
+    <div class="an-status">${anStatusHTML()}</div>
     <div class="compass">${hbox(0, 'hn')}${hbox(3, 'hw')}<div class="mid">Donne n° ${g.board}<br>Donneur : ${seatName(g.dealer)}</div>${hbox(1, 'he')}${hbox(2, 'hs')}</div>
     ${tricks}
     <div class="btns"><button class="btn primary" data-act="new">Donne suivante</button>
@@ -860,7 +911,7 @@ function layout() {
   // le coin en haut à droite est réservé au message du coup : Nord se décale un peu à gauche si la place manque
   let nx = 0;
   if (g && g.phase === 'play') {
-    const right = W / 2 - nz.offsetWidth / 2, need = 208;
+    const right = W / 2 - nz.offsetWidth / 2, need = 196 + 18 + 12;
     if (right < need) nx = -Math.min(need - right, Math.max(0, right - 16));
   }
   st.setProperty('--nx', nx + 'px');
@@ -870,7 +921,8 @@ function layout() {
   const sideRows = side ? side.querySelectorAll('.row').length : 4;
   const availSide = bottom - top + 30;
   let cwD = cwS;
-  if (50 + cwD * (1.42 + 0.62 * (sideRows - 1)) > availSide) cwD = Math.max(44, (availSide - 50) / (1.42 + 0.62 * (sideRows - 1)));
+  const tagH = side ? side.parentElement.querySelector('.tag').offsetHeight + 9 : 50;
+  if (tagH + cwD * (1.42 + 0.62 * (sideRows - 1)) > availSide) cwD = Math.max(44, (availSide - tagH) / (1.42 + 0.62 * (sideRows - 1)));
   const hstep = Math.max(cwD * 0.36, Math.min(cwD * 0.45, (W * 0.27 - cwD) / Math.max(1, sideMax - 1)));
   st.setProperty('--cwD', cwD + 'px'); st.setProperty('--rstep', cwD * 0.62 + 'px'); st.setProperty('--hstep', hstep + 'px');
   const sideSeat = side ? +side.dataset.seat : -1;
@@ -903,6 +955,7 @@ function renderSettings() {
   $app.innerHTML = `<div class="page"><div class="inner">
     <button class="btn back" data-act="${G.game && G.game.phase !== 'end' ? 'resume' : 'go:home'}">← Retour</button>
     <h1>Réglages</h1>
+    <div class="setting"><div class="lbl">Votre portrait<small>Votre photo (normale ou avec un effet rigolo), votre prénom et votre situation.</small></div><button class="btn me-btn" data-act="profil">${meAvatar()}Modifier</button></div>
     <div class="setting"><div class="lbl">Taille des cartes<small>« Très grandes » utilise toute la place disponible.</small></div>${seg('cardSize', [['normal', 'Grandes'], ['grand', 'Très grandes']])}</div>
     <div class="setting"><div class="lbl">Couleurs des cartes<small>4 couleurs : ${su(2)} orange et ${su(3)} vert, pour mieux les distinguer.</small></div>${seg('fourColors', [[false, '2 couleurs'], [true, '4 couleurs']])}</div>
     <div class="setting"><div class="lbl">Vitesse des robots</div>${seg('speed', [['lent', 'Lente'], ['normal', 'Normale'], ['rapide', 'Rapide']])}</div>
@@ -945,15 +998,24 @@ function renderStats() {
       <div><b>${def.length ? Math.round(100 * beat / def.length) + ' %' : '—'}</b>contrats adverses chutés (${beat} sur ${def.length})</div>
       <div><b>${total > 0 ? '+' : ''}${total}</b>points au total (Nord-Sud)</div>
     </div>
+    ${persoStatsHTML()}
     <h2>Dernières donnes</h2>
     ${rows ? `<table class="hist"><tr><th>Donne</th><th>Contrat</th><th>Plis</th><th>Résultat</th><th>Marque NS</th></tr>${rows}</table>` : '<p>Aucune donne terminée pour l\'instant.</p>'}
   </div></div>`;
+}
+function persoStatsHTML() {
+  const wl = G.stats.wl || {};
+  const list = B.PERSOS.filter(q => wl[q.name]);
+  if (!list.length) return '';
+  const cell = w => w.v + w.d ? `<span class="w">✓ ${w.v}</span> <span class="l">✗ ${w.d}</span>` : '—';
+  return `<h2>Avec et contre les personnages</h2><table class="hist persos"><tr><th></th><th>Personnage</th><th>Avec (partenaire)</th><th>Contre (adversaire)</th></tr>
+    ${list.map(q => `<tr><td>${B.avatarSVG(q)}</td><td><b>${q.name}</b><br><small>${q.title}</small></td><td>${cell(wlOf(q.name, true))}</td><td>${cell(wlOf(q.name, false))}</td></tr>`).join('')}</table>`;
 }
 function renderHelp() {
   $app.innerHTML = `<div class="page"><div class="inner">
     <button class="btn back" data-act="${G.game && G.game.phase !== 'end' ? 'resume' : 'go:home'}">← Retour</button>
     <h1>Comment jouer</h1>
-    <p>Vous êtes <b>Sud</b>, en bas de l'écran. Votre partenaire Nord et les adversaires Est et Ouest sont des robots. Ils annoncent comme dans les fiches de votre cours (Majeure 5e, 1SA de 15 à 17 points, Stayman, Texas, 2 faibles…).</p>
+    <p>Vous êtes <b>Sud</b>, en bas de l'écran. Votre partenaire (en Nord) et vos deux adversaires (Est et Ouest) sont des robots, joués par des personnages de la Côte d'Azur tirés au sort à chaque donne : touchez un visage pour faire connaissance, et touchez « Vous » pour mettre votre photo. Ils annoncent comme dans les fiches de votre cours (Majeure 5e, 1SA de 15 à 17 points, Stayman, Texas, 2 faibles…).</p>
     <h2>Les enchères</h2>
     <ul>
       <li>Quand c'est à vous, la boîte d'enchères apparaît au milieu du tapis : touchez d'abord le <b>palier</b> (1 à 7), puis la <b>couleur</b> (${su(3)} ${su(2)} ${su(1)} ${su(0)} ou SA).</li>
@@ -964,7 +1026,7 @@ function renderHelp() {
     <h2>Le jeu de la carte</h2>
     <ul>
       <li>Touchez une carte pour la <b>soulever</b>, touchez-la une 2e fois pour la <b>jouer</b>. Les cartes grisées ne peuvent pas être jouées (il faut fournir à la couleur demandée).</li>
-      <li>Quand votre camp joue le contrat, <b>vous jouez aussi les cartes du mort</b> (Nord, en haut).</li>
+      <li>Quand votre camp joue le contrat, <b>vous jouez aussi les cartes du mort</b> (votre partenaire, en haut). Touchez une couleur du mort : ses cartes s'affichent en grand pour bien choisir.</li>
       <li>Quand les adversaires jouent le contrat, le mort est étalé sur le côté après l'entame.</li>
     </ul>
     <h2>Les boutons</h2>
@@ -974,6 +1036,8 @@ function renderHelp() {
       <li><b>Dernier pli</b> : revoir les 4 cartes du pli précédent.</li>
       <li><b>Réclamer</b> : terminer la donne quand toutes vos cartes sont maîtresses.</li>
       <li><b>Menu</b> : nouvelle donne, recommencer la donne, résultats, réglages.</li>
+      <li><b>En fin de donne</b>, l'ordinateur analyse votre jeu : ce qu'il fallait faire, tous les coups un par un, et la meilleure façon de jouer. Vous pouvez ensuite rejouer la donne.</li>
+      <li><b>Votre portrait</b> : touchez « Vous » en bas du tapis pour mettre une photo (normale ou rigolote), votre prénom et votre situation. Les compteurs verts et rouges à côté des visages comptent vos victoires et vos défaites.</li>
     </ul>
     <h2>Mémo du cours</h2>
     <div class="memo">
@@ -988,10 +1052,308 @@ function renderHelp() {
   </div></div>`;
 }
 
+/* ---------- Votre portrait : selfie normal ou visage déformé pour rire ---------- */
+const CAM_AV = '<svg class="av cam" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="50" fill="#efe6d2"/><path d="M28 39h9l4-6h18l4 6h9a4 4 0 0 1 4 4v25a4 4 0 0 1-4 4H28a4 4 0 0 1-4-4V43a4 4 0 0 1 4-4z" fill="#1d2b4f"/><circle cx="50" cy="56" r="11" fill="#efe6d2"/><circle cx="50" cy="56" r="6.5" fill="#1d2b4f"/><circle cx="76" cy="27" r="12" fill="#c9a34a"/><path d="M76 20.5v13M69.5 27h13" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/></svg>';
+const meAvatar = () => P.photo ? `<img class="av" src="${P.photo}" alt="">` : CAM_AV;
+const EFFECTS = [['normale', 'Normale'], ['nez', 'Gros nez'], ['yeux', 'Gros yeux'], ['joues', 'Bonnes joues'], ['front', 'Grand front'], ['tourbillon', 'Tourbillon']];
+// loupe déformante : à l'intérieur de l'ellipse, on va chercher les pixels plus près du centre (k > 1 grossit)
+function bulge(u, v, cx, cy, rx, ry, k) {
+  const dx = (u - cx) / rx, dy = (v - cy) / ry, r = Math.hypot(dx, dy);
+  if (r >= 1 || r === 0) return null;
+  const f = Math.pow(r, k) / r;
+  return [cx + dx * f * rx, cy + dy * f * ry];
+}
+const WARP = {
+  normale: (u, v) => [u, v],
+  nez: (u, v) => bulge(u, v, 0, 0.1, 0.62, 0.62, 1.9) || [u, v],
+  yeux: (u, v) => bulge(u, v, -0.3, -0.12, 0.29, 0.29, 2.1) || bulge(u, v, 0.3, -0.12, 0.29, 0.29, 2.1) || [u, v],
+  joues: (u, v) => bulge(u, v, 0, 0.38, 0.9, 0.55, 1.75) || [u, v],
+  front: (u, v) => bulge(u, v, 0, -0.45, 0.95, 0.62, 1.8) || [u, v],
+  tourbillon: (u, v) => {
+    const r = Math.hypot(u, v);
+    if (r >= 1) return [u, v];
+    const a = (1 - r) * (1 - r) * 2.4, c = Math.cos(a), sn = Math.sin(a);
+    return [u * c - v * sn, u * sn + v * c];
+  },
+};
+// applique l'effet : src = pixels carrés S×S, résultat dessiné dans le canvas out
+function warp(src, S, out, name) {
+  const N = out.width, ctx = out.getContext('2d'), img = ctx.createImageData(N, N), d = img.data, sd = src.data, f = WARP[name] || WARP.normale;
+  for (let j = 0; j < N; j++) {
+    for (let i = 0; i < N; i++) {
+      const [us, vs] = f((i + 0.5) / N * 2 - 1, (j + 0.5) / N * 2 - 1);
+      const x = Math.min(S - 1, Math.max(0, Math.floor((us + 1) / 2 * S)));
+      const y = Math.min(S - 1, Math.max(0, Math.floor((vs + 1) / 2 * S)));
+      const a = (y * S + x) * 4, b = (j * N + i) * 4;
+      d[b] = sd[a]; d[b + 1] = sd[a + 1]; d[b + 2] = sd[a + 2]; d[b + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+}
+function openProfile() {
+  const S = 480;
+  const ed = { name: P.name || '', title: P.title || '', effect: P.effect || 'normale', img: null, z: 1, cx: 0, cy: 0 };
+  const crop = document.createElement('canvas');
+  crop.width = crop.height = S;
+  let src = null;
+  modal(`<h2>Votre portrait</h2>
+    <div class="pf">
+      <div class="pf-left">
+        <div class="pf-photo"><canvas class="pf-big" width="320" height="320"></canvas><div class="pf-empty">${CAM_AV}</div></div>
+        <div class="pf-zoom"><span>Zoom</span><input type="range" min="1" max="3" step="0.02" value="1"></div>
+        <button class="pf-del">Retirer la photo</button>
+      </div>
+      <div class="pf-side">
+        <div class="pf-pick"><label class="btn primary">${ICONS.cam}Selfie<input type="file" accept="image/*" capture="user" hidden></label>
+        <label class="btn">${ICONS.pic}Mes photos<input type="file" accept="image/*" hidden></label></div>
+        <p class="pf-tip">Glissez la photo du doigt pour mettre le visage au centre du rond.</p>
+        <label class="pf-field">Votre prénom<input type="text" class="pf-name" maxlength="20" placeholder="Marianne" value="${esc(ed.name)}"></label>
+        <label class="pf-field">Votre situation<input type="text" class="pf-title" maxlength="40" placeholder="ex. : la reine du bridge de Beaulieu" value="${esc(ed.title)}"></label>
+      </div>
+    </div>
+    <div class="pf-fx">${EFFECTS.map(([k, l]) => `<button class="fx ${k === ed.effect ? 'on' : ''}" data-fx="${k}"><canvas width="96" height="96"></canvas><span>${l}</span></button>`).join('')}</div>
+    <div class="btns"><button class="btn primary" data-m="save">Enregistrer</button><button class="btn" data-m="no">Annuler</button></div>`,
+  v => { if (v === 'save') commit(); }, 'profil');
+  const root = $modal.querySelector('.sheet');
+  const big = root.querySelector('.pf-big'), zoom = root.querySelector('.pf-zoom input');
+  const thumbs = [...root.querySelectorAll('.fx')];
+  const refresh = () => {
+    root.classList.toggle('has-photo', !!ed.img);
+    if (!ed.img) { src = null; return; }
+    const w = ed.img.naturalWidth, h = ed.img.naturalHeight, side = Math.min(w, h) / ed.z;
+    ed.cx = Math.min(w - side / 2, Math.max(side / 2, ed.cx));
+    ed.cy = Math.min(h - side / 2, Math.max(side / 2, ed.cy));
+    const c = crop.getContext('2d');
+    c.drawImage(ed.img, ed.cx - side / 2, ed.cy - side / 2, side, side, 0, 0, S, S);
+    src = c.getImageData(0, 0, S, S);
+    warp(src, S, big, ed.effect);
+  };
+  const refreshThumbs = () => { if (src) thumbs.forEach(b => warp(src, S, b.querySelector('canvas'), b.dataset.fx)); };
+  const useImage = (im, keep) => {
+    ed.img = im;
+    if (!keep) { ed.z = 1; zoom.value = 1; }
+    ed.cx = im.naturalWidth / 2; ed.cy = im.naturalHeight / 2;
+    refresh(); refreshThumbs();
+  };
+  if (P.src) { const im = new Image(); im.onload = () => useImage(im); im.src = P.src; }
+  else refresh();
+  root.querySelectorAll('input[type=file]').forEach(inp => inp.addEventListener('change', () => {
+    const f = inp.files && inp.files[0];
+    if (!f) return;
+    const im = new Image();
+    im.onload = () => useImage(im);
+    im.onerror = () => toast('Cette photo ne peut pas être ouverte.');
+    im.src = URL.createObjectURL(f);
+    inp.value = '';
+  }));
+  zoom.addEventListener('input', () => { ed.z = +zoom.value; refresh(); });
+  zoom.addEventListener('change', refreshThumbs);
+  // faire glisser la photo pour cadrer le visage
+  let drag = null;
+  big.addEventListener('pointerdown', e => { if (!ed.img) return; drag = { x: e.clientX, y: e.clientY }; big.setPointerCapture(e.pointerId); });
+  big.addEventListener('pointermove', e => {
+    if (!drag) return;
+    const side = Math.min(ed.img.naturalWidth, ed.img.naturalHeight) / ed.z, k = side / big.clientWidth;
+    ed.cx -= (e.clientX - drag.x) * k; ed.cy -= (e.clientY - drag.y) * k;
+    drag = { x: e.clientX, y: e.clientY };
+    refresh();
+  });
+  const endDrag = () => { if (drag) { drag = null; refreshThumbs(); } };
+  big.addEventListener('pointerup', endDrag);
+  big.addEventListener('pointercancel', endDrag);
+  thumbs.forEach(b => b.addEventListener('click', () => {
+    ed.effect = b.dataset.fx;
+    thumbs.forEach(x => x.classList.toggle('on', x === b));
+    snd('select');
+    refresh();
+  }));
+  root.querySelector('.pf-del').addEventListener('click', () => { ed.img = null; refresh(); });
+  root.querySelector('.pf-name').addEventListener('input', e => { ed.name = e.target.value; });
+  root.querySelector('.pf-title').addEventListener('input', e => { ed.title = e.target.value; });
+  function commit() {
+    P.name = ed.name.trim();
+    P.title = ed.title.trim();
+    if (src) {
+      P.effect = ed.effect;
+      P.src = crop.toDataURL('image/jpeg', 0.85);
+      const out = document.createElement('canvas');
+      out.width = out.height = 320;
+      warp(src, S, out, ed.effect);
+      P.photo = out.toDataURL('image/jpeg', 0.85);
+    } else { delete P.photo; delete P.src; delete P.effect; }
+    if (!saveProfile()) toast('Le portrait n\'a pas pu être enregistré sur cette tablette.');
+    else { snd('success'); toast(P.photo ? 'Votre portrait est enregistré.' : 'C\'est enregistré.'); }
+    render();
+  }
+}
+
+/* ---------- Analyse de la donne : ce qui n'allait pas, tous les coups, la meilleure façon de jouer ---------- */
+let AN = { sig: null, res: null, pct: 0 };
+let review = { mode: 'mine', step: 0 };
+const dealSig = g => JSON.stringify([g.board, g.hands[2], g.auction, g.play ? g.play.tricks.map(t => t.cards.map(x => x.card)) : 0]);
+const userNS = g => !!g.contract && B.sideOf(g.contract.declarer) === 0;
+// lance l'analyse de la donne terminée (une seule fois par donne), un peu après la fin pour laisser la fête se jouer
+function ensureAnalysis(delay) {
+  const g = G.game;
+  if (!g || g.phase !== 'end' || !g.result) return;
+  const sig = dealSig(g);
+  if (AN.sig === sig) return;
+  const job = AN = { sig, res: null, pct: 0 };
+  setTimeout(() => {
+    if (AN !== job) return;
+    B.analyseDeal(g, { userNS: userNS(g), progress: (d, t) => {
+      if (AN !== job) throw new Error('donne changée');
+      job.pct = Math.round(100 * d / t);
+      const b = document.querySelector('.an-bar b');
+      if (b) b.style.width = job.pct + '%';
+    } }).then(res => { if (AN === job) { job.res = res; refreshAnalysisViews(); } })
+      .catch(() => { if (AN === job) { job.res = { bids: [], seq: [], best: null, won: [0, 0], failed: true }; refreshAnalysisViews(); } });
+  }, delay == null ? 1500 : delay);
+}
+function refreshAnalysisViews() {
+  if (screen === 'analyse') render();
+  const el = document.querySelector('.an-status');
+  if (el) el.innerHTML = anStatusHTML();
+}
+const plural = (n, w) => `${n} ${w}${n > 1 ? 's' : ''}`;
+const ordinal = n => n === 1 ? '1re' : n + 'e';
+function anStatusHTML() {
+  const a = AN.res;
+  if (!a) return `<div class="an-wait">L'ordinateur analyse votre donne…<div class="an-bar"><b style="width:${AN.pct}%"></b></div></div>`;
+  const fixes = a.seq.filter(x => x.fix).length, n = a.bids.length + fixes;
+  const txt = a.failed ? 'L\'analyse n\'a pas pu être faite pour cette donne.'
+    : n ? `<b>${plural(n, 'point')} à revoir</b> : ${[a.bids.length ? plural(a.bids.length, 'enchère') : '', fixes ? plural(fixes, 'carte') : ''].filter(Boolean).join(' et ')}.`
+      : '<b>Rien à redire</b> : vous avez suivi le cours.';
+  return `<div class="an-done ${n ? 'warn' : 'ok'}">${txt}</div>
+    ${a.failed ? '' : `<button class="btn gold" data-act="analyse">${ICONS.hint}${n ? 'Voir ce qu\'il fallait faire et la meilleure façon de jouer' : 'Voir la meilleure façon de jouer'}</button>`}`;
+}
+function renderAnalysis() {
+  const g = G.game, a = AN.res;
+  const head = `<button class="btn back" data-act="resume">← Retour à la donne</button><h1>Analyse de la donne n° ${g.board}</h1>`;
+  if (!a) {
+    $app.innerHTML = `<div class="page"><div class="inner analyse">${head}<div class="an-wait big">L'ordinateur analyse votre donne…<div class="an-bar"><b style="width:${AN.pct}%"></b></div></div></div></div>`;
+    return;
+  }
+  const ct = g.contract, r = g.result;
+  const items = [];
+  a.bids.forEach(b => items.push(`<li><div class="an-k">Enchères · votre ${ordinal(b.nth)} enchère</div>
+    Vous avez dit <b>${callHTML(b.call, true)}</b> ; ${b.sure ? 'le cours conseillait' : 'le robot aurait dit'} <b>${callHTML(b.best, true)}</b>.
+    <div class="an-why">${callHTML(b.best, true)} : ${rich(b.m.name)}. ${rich(b.m.text)}</div>
+    ${b.mine && b.mine.name && b.call !== 'P' ? `<div class="an-mine">Votre ${callHTML(b.call, true)} voulait dire : ${rich(b.mine.name)}.</div>` : ''}
+    ${b.sure && b.m.fiche ? ficheBtn(b.m.fiche) : ''}</li>`));
+  a.seq.forEach((x, i) => {
+    if (!x.fix) return;
+    const k = Math.floor(i / 4) + 1;
+    items.push(`<li><div class="an-k">Jeu de la carte · pli ${k}</div>
+      Vous avez joué ${cardTxtHTML(x.card)}${x.seat === 0 ? ' (de ' + nameOf(0) + ')' : ''} ; ${x.fix.exact ? 'il fallait jouer' : 'le cours conseillait plutôt'} ${cardTxtHTML(x.fix.card)}.
+      ${x.fix.reason ? `<div class="an-why">${rich(x.fix.reason)}</div>` : ''}
+      ${x.fix.exact ? `<div class="an-mine">En voyant toutes les cartes : ${plural(x.fix.lost, 'pli')} de perdu avec ce coup.</div>` : ''}
+      <button class="btn small" data-act="revue:mine:${i + 1}">Voir ce coup</button></li>`);
+  });
+  let compare = '';
+  if (a.best && ct) {
+    const nsWas = a.won[0], nsBest = a.best.won[0], ns = B.sideOf(ct.declarer) === 0;
+    const need = ct.level + 6, made = t => ns ? t >= need : 13 - t < need;
+    compare = nsBest > nsWas
+      ? `Avec la meilleure façon de jouer, Nord-Sud fait <b>${plural(nsBest, 'pli')}</b> au lieu de ${nsWas}${made(nsBest) !== made(nsWas) ? (made(nsBest) === ns ? ' : le contrat est réussi' : ' : le contrat adverse chute') : ''}.`
+      : `Vous avez fait <b>au moins aussi bien</b> que la meilleure façon de jouer trouvée par l'ordinateur (${plural(nsBest, 'pli')} pour Nord-Sud). Bravo !`;
+  }
+  $app.innerHTML = `<div class="page"><div class="inner analyse">${head}
+    <div class="an-res">${ct ? `${contractHTML(ct)} joué par ${nameOf(ct.declarer)} : ${plural(r.tricks, 'pli')}${r.made ? ', contrat réussi' : ', contrat chuté'}.` : 'Donne passée.'}</div>
+    ${auctionGridHTML(g, a.bids.map(b => b.i))}
+    <h2>Ce qui n'allait pas</h2>
+    ${items.length ? `<ol class="an-list">${items.join('')}</ol>` : '<p class="an-ok">Rien à redire : vos enchères et vos cartes suivent le cours. Bravo !</p>'}
+    ${a.best ? `<h2>Pour bien comprendre</h2><p>${compare}</p>
+    <div class="an-btns">
+      <button class="btn primary" data-act="revue:mine">Revoir tous les coups de la donne</button>
+      <button class="btn gold" data-act="revue:best">★ Voir la meilleure façon de jouer</button>
+    </div>` : ''}
+    <div class="an-btns"><button class="btn green" data-act="replay">↻ Rejouer cette donne</button><button class="btn" data-act="new">Donne suivante</button></div>
+    <p class="an-note">Pour les 8 derniers plis, l'ordinateur calcule exactement en voyant toutes les cartes. Avant, il suit les conseils du cours, comme le bouton « Conseil ».</p>
+  </div></div>`;
+}
+function auctionGridHTML(g, bad) {
+  const head = ORDER.map(s => `<div>${s === 2 ? (P.name ? esc(P.name) : 'Vous') : perso(s).name}<small>${SEATN[s]}</small></div>`).join('');
+  const cells = [];
+  for (let i = 0; i < ORDER.indexOf(g.dealer); i++) cells.push('<span></span>');
+  g.auction.forEach((c, i) => cells.push(`<span class="${c === 'P' ? 'pass' : ''} ${bad.includes(i) ? 'bad' : ''}">${callHTML(c)}</span>`));
+  while (cells.length % 4) cells.push('<span></span>');
+  return `<div class="an-auction"><div class="hd">${head}</div><div class="bd">${cells.join('')}</div></div>`;
+}
+// le lecteur : la donne cartes visibles, une carte à la fois, avec l'explication de chaque coup
+function reviewSeq() { return review.mode === 'best' ? AN.res.best.seq : AN.res.seq; }
+function reviewMove(how) {
+  const seq = reviewSeq(), n = seq.length;
+  let p = review.step;
+  if (how === 'prev') p--;
+  else if (how === 'next') p++;
+  else if (how === 'trick') p = Math.floor(p / 4) * 4 + 4;
+  else if (how === 'fix') { const i = seq.findIndex((x, j) => j >= p && x.fix); p = i >= 0 ? i + 1 : p; }
+  else if (how === 'start') p = 0;
+  review.step = Math.max(0, Math.min(n, p));
+  snd(how === 'prev' ? 'select' : 'card');
+  render();
+}
+function renderReview() {
+  const g = G.game, a = AN.res, best = review.mode === 'best';
+  const seq = reviewSeq(), n = seq.length, p = Math.max(0, Math.min(n, review.step));
+  const st = B.newPlay(g.hands, g.contract);
+  for (let i = 0; i < p; i++) B.playCard(st, seq[i].seat, seq[i].card);
+  let shown = st.trick, winner = -1;
+  if (!shown.length && st.tricks.length && p > 0) { const t = st.tricks[st.tricks.length - 1]; shown = t.cards; winner = t.winner; }
+  const last = p > 0 ? seq[p - 1] : null;
+  const fixCard = !best && last && last.fix ? last.fix.card : null;
+  const isUser = s => s === 2 || (s === 0 && userNS(g));
+  const who = s => s === 2 ? (P.name ? esc(P.name) : 'Vous') : perso(s).name;
+  const hand = s => `<div class="rv-hand rv-${'nesw'[s]} ${!st.done && st.turn === s && p < n ? 'next' : ''}">
+    <div class="rv-who">${s === 2 ? meAvatar() : B.avatarSVG(perso(s))}${who(s)}<small>${SEATN[s]}</small></div>
+    ${[0, 1, 2, 3].map(su0 => `<div class="rv-suit">${su(su0)} ${B.ranksIn(st.hands[s], su0).map(r => `<span class="${su0 * 13 + r === fixCard ? 'fix' : ''}">${B.RANK_TXT[r]}</span>`).join(' ') || '—'}</div>`).join('')}</div>`;
+  const trick = `<div class="center"><div class="trick">${shown.map(x => `<div class="slot s${x.seat} ${x.seat === winner ? 'win' : ''} ${last && x.card === last.card && last.fix && !best ? 'bad' : ''}">${cardHTML(x.card, x.card === (last && last.card) ? '' : 'nodrop')}</div>`).join('')}</div></div>`;
+  let exp;
+  if (!last) {
+    const ct = g.contract;
+    exp = `<p><b>${best ? 'La meilleure façon de jouer' : 'Votre partie, coup par coup'}.</b></p><p>Contrat : <b>${contractHTML(ct)}</b> joué par ${nameOf(ct.declarer)}. ${who((ct.declarer + 1) % 4)} entame.</p>
+      <p>Toutes les cartes sont visibles. Touchez « Suivant » pour voir chaque carte${best ? ' et pourquoi elle est jouée' : ', et ce qu\'il fallait jouer quand ce n\'était pas le bon coup'}.</p>`;
+  } else {
+    exp = `<p class="rv-play">${last.seat === 2 && !P.name ? 'Vous jouez' : who(last.seat) + ' joue'} ${cardTxtHTML(last.card)}.</p>`;
+    if (best && last.reason) exp += `<div class="why"><b>Pourquoi ?</b> ${isUser(last.seat) ? '' : `<i>(le conseil pour ${who(last.seat)})</i> `}${rich(last.reason)}</div>`;
+    if (!best && last.fix) {
+      exp += `<div class="bad"><b>${last.fix.exact ? 'Il fallait jouer' : 'Le cours conseillait plutôt'} ${cardTxtHTML(last.fix.card)}</b> (en couleur dans la main).
+        ${last.fix.reason ? '<br>' + rich(last.fix.reason) : ''}${last.fix.exact ? `<br><i>En voyant toutes les cartes : ${plural(last.fix.lost, 'pli')} de perdu avec ce coup.</i>` : ''}</div>`;
+    } else if (!best && isUser(last.seat) && last.advice != null) exp += '<div class="good">✓ Bon coup : c\'est aussi ce que conseille le cours.</div>';
+    if (winner >= 0) exp += `<p class="rv-won">Pli gagné par <b>${who(winner)}</b> (${B.sideOf(winner) === 0 ? 'Nord-Sud' : 'Est-Ouest'}).</p>`;
+  }
+  if (p === n && n) {
+    const ct = g.contract, ns = best ? a.best.won[0] : a.won[0];
+    const declT = B.sideOf(ct.declarer) === 0 ? ns : 13 - ns, ok = declT >= ct.level + 6;
+    exp += `<p class="rv-end">Fin : Nord-Sud a fait <b>${plural(ns, 'pli')}</b>${!best && n < 52 ? ' (la fin a été réclamée)' : ''}. Le contrat de ${nameOf(ct.declarer)} est <b>${ok ? 'réussi' : 'chuté'}</b>.</p>`;
+  }
+  const nextFix = !best ? seq.findIndex((x, j) => j >= p && x.fix) : -1;
+  $app.innerHTML = `<div class="rv">
+    <div class="rv-table" id="rvt">${hand(0)}${hand(3)}${hand(1)}${hand(2)}${trick}</div>
+    <aside class="rv-side"><div class="scroll">
+      <div class="rv-top"><b>${best ? '★ Meilleure façon de jouer' : 'Votre partie'}</b><span class="rv-step">Carte ${p} sur ${n} · pli ${Math.min(13, Math.floor(Math.max(0, p - 1) / 4) + 1)}</span></div>
+      <div class="rv-exp">${exp}</div></div>
+      <div class="rv-ctrl">
+        <button class="btn" data-act="rv:prev" ${p === 0 ? 'disabled' : ''}>‹ Précédent</button>
+        <button class="btn primary" data-act="rv:next" ${p === n ? 'disabled' : ''}>Suivant ›</button>
+        <button class="btn" data-act="rv:trick" ${p === n ? 'disabled' : ''}>Pli suivant »</button>
+        ${nextFix >= 0 ? '<button class="btn gold" data-act="rv:fix">Coup à revoir suivant</button>' : `<button class="btn" data-act="rv:start" ${p === 0 ? 'disabled' : ''}>Revenir au début</button>`}
+        <button class="btn" data-act="analyse">← Analyse</button>
+        <button class="btn" data-act="revue:${best ? 'mine' : 'best'}">${best ? 'Votre partie' : '★ Meilleure façon'}</button>
+      </div></aside></div>`;
+  // taille des cartes du pli selon la place entre les mains
+  const t = document.getElementById('rvt');
+  const hn = t.querySelector('.rv-n'), hs = t.querySelector('.rv-s');
+  const free = hs.offsetTop - (hn.offsetTop + hn.offsetHeight) - 16;
+  t.style.setProperty('--cwT', Math.max(40, Math.min(78, free / (1.42 * 2.1))) + 'px');
+}
+
 /* ---------- Gestion des touchers ---------- */
 $app.addEventListener('click', e => {
   const pe = e.target.closest('[data-perso]');
   if (pe && screen === 'game') { showPerso(+pe.dataset.perso); return; }
+  if (e.target.closest('[data-me]') && screen === 'game') { openProfile(); return; }
   const cardEl = e.target.closest('.card[data-c]');
   if (cardEl && screen === 'game') {
     const zone = cardEl.closest('[data-seat]');
@@ -1010,6 +1372,10 @@ $app.addEventListener('click', e => {
   else if (k === 'resume') go('game');
   else if (k === 'go') go(v);
   else if (k === 'menu') menu();
+  else if (k === 'profil') openProfile();
+  else if (k === 'analyse') { cancelTimers(); screen = 'analyse'; ensureAnalysis(0); render(); window.scrollTo(0, 0); }
+  else if (k === 'revue') { review = { mode: v, step: w != null ? +w : 0 }; screen = 'revue'; render(); }
+  else if (k === 'rv') reviewMove(v);
   else if (k === 'hint') hint();
   else if (k === 'undo') undo();
   else if (k === 'last') lastTrick();
@@ -1032,7 +1398,7 @@ $app.addEventListener('click', e => {
     else { snd('success'); say('Le son fonctionne.'); toast('Vous devez entendre une petite musique. Sinon, montez le volume de l\'iPad.', 3600); }
   } else if (k === 'reset-stats') {
     modal(`<h2>Effacer tous vos résultats ?</h2><p>L'historique des donnes jouées sera supprimé de cette tablette.</p>
-      <div class="btns"><button class="btn primary" data-m="yes">Effacer</button><button class="btn" data-m="no">Garder</button></div>`, r => { if (r === 'yes') { G.stats.history = []; save(); toast('Résultats effacés.'); } });
+      <div class="btns"><button class="btn primary" data-m="yes">Effacer</button><button class="btn" data-m="no">Garder</button></div>`, r => { if (r === 'yes') { G.stats.history = []; G.stats.wl = {}; G.stats.me = { v: 0, d: 0 }; save(); toast('Résultats effacés.'); } });
   }
 });
 // une fiche du cours, en grand, par-dessus le jeu (images en cache : marche sans internet)
@@ -1044,7 +1410,7 @@ function openFiche(id) {
   v.className = 'fiche-view';
   v.innerHTML = `<div class="bar"><div class="ttl">Fiche du cours n° ${id}<small>${rich(B.FICHES[id])}</small></div>
     <button class="btn" data-z="-1">A−</button><button class="btn" data-z="1">A+</button><button class="btn primary" data-close>Fermer</button></div>
-    <div class="pages">${Array.from({ length: n }, (_, i) => `<img src="fiches/f${id}-${i + 1}.jpg?v=3" alt="Fiche ${id}, page ${i + 1}">`).join('')}</div>`;
+    <div class="pages">${Array.from({ length: n }, (_, i) => `<img src="fiches/f${id}-${i + 1}.jpg?v=4" alt="Fiche ${id}, page ${i + 1}">`).join('')}</div>`;
   document.body.appendChild(v);
   snd('select');
   const pages = v.querySelector('.pages');
@@ -1056,9 +1422,12 @@ function openFiche(id) {
 }
 document.addEventListener('click', e => { const f = e.target.closest('[data-fiche]'); if (f) openFiche(f.dataset.fiche); });
 function showPerso(s) {
-  const q = opp(s);
-  modal(`<div class="perso-card">${B.avatarSVG(q)}<div><h2>${q.name}</h2><div class="ttl">${q.title} · joue en ${SEATN[s]}</div></div></div>
-    <p>${q.bio}</p><div class="btns"><button class="btn primary" data-m="ok">Fermer</button></div>`);
+  const q = perso(s), w = wlOf(q.name, s === 0);
+  const pl = (n, word) => `<b>${n}</b> ${word}${n > 1 ? 's' : ''}`;
+  modal(`<div class="perso-card">${B.avatarSVG(q)}<div><h2>${q.name}</h2><div class="ttl">${q.title} · ${s === 0 ? 'votre partenaire' : 'joue en ' + SEATN[s]}</div></div></div>
+    <p>${q.bio}</p>
+    <p class="perso-wl">${s === 0 ? 'Avec' : 'Contre'} ${q.name} : <span class="w">${pl(w.v, 'victoire')}</span> · <span class="l">${pl(w.d, 'défaite')}</span></p>
+    <div class="btns"><button class="btn primary" data-m="ok">Fermer</button></div>`);
 }
 // le son ne peut démarrer qu'après un toucher (règle de l'iPad)
 ['touchend', 'click'].forEach(ev => document.addEventListener(ev, () => { if (B.sound) B.sound.unlock(); }, { capture: true, passive: true }));
