@@ -1,23 +1,36 @@
 /* Le Bridge de Marianne — interface tablette */
-window.addEventListener("error", e => { window.__err = (window.__err || "") + e.message + " @" + e.lineno + "; "; });
+window.addEventListener("error", e => { window.__err = (window.__err || "") + e.message + " @" + e.lineno + (e.error && e.error.stack ? " [" + e.error.stack.split("\n").slice(1, 6).join(" < ") + "]" : "") + "; "; });
 (function () {
 'use strict';
 const STORE = 'bridge-marianne-v1';
 const $app = document.getElementById('app');
 const $modal = document.getElementById('modal-root');
-const DEFAULTS = { cardSize: 'grand', fourColors: false, speed: 'normal', doubleTap: true, showPoints: true, checkBids: true, deals: 'hasard' };
+const DEFAULTS = { cardSize: 'grand', fourColors: false, speed: 'normal', doubleTap: true, showPoints: true, checkBids: true, deals: 'hasard', sound: true, volume: 'moyen', voice: false, animations: true };
 const ORDER = [2, 3, 0, 1];                 // colonnes du tableau d'enchères : S O N E
 const SPEED = { lent: 1.6, normal: 1, rapide: 0.55 };
 
 let G = load();
 let screen = 'home';
 let runToken = 0;
+let robotPending = false;   // un robot est déjà en train de réfléchir (jamais deux à la fois)
+let dealing = false;        // distribution en cours : on attend avant d'annoncer
+function cancelTimers() { runToken++; robotPending = false; }
 let thinking = -1;          // joueur robot en train de réfléchir
 let holdTrick = false;      // pli complet affiché un instant
 let bidLevel = null;        // palier choisi dans la boîte d'enchères
 let selected = null;        // carte soulevée (double toucher)
 let hintCard = null;        // carte conseillée
 let lastPlayed = null;      // dernière carte posée (pour l'animation)
+let fly = null;             // carte en vol vers le pli : {card, rect, face}
+let dealAnim = false;       // distribution animée au début de la donne
+let dummyRevealKey = null;  // donne dont le mort a déjà été étalé (animation faite)
+let newBidIdx = -1;         // dernière enchère posée (bulle animée)
+let bidboxEnter = false;    // la boîte d'enchères arrive
+let robotActed = true;      // un robot a joué depuis la dernière action de l'utilisatrice
+let shownWon = null;        // compteurs de plis déjà affichés
+const anim = () => G.settings.animations !== false;
+const snd = n => { if (B.sound) B.sound.play(n); };
+const say = t => { if (B.sound) B.sound.speak(t); };
 
 function load() {
   try {
@@ -80,11 +93,11 @@ function modal(html, onClick) {
   });
 }
 function closeModal() { $modal.innerHTML = ''; }
-const delay = kind => ({ bid: 950, card: 750, trick: 1500, lead: 1100 })[kind] * SPEED[G.settings.speed];
+const delay = kind => ({ bid: 900, card: 700, trick: 1100, lead: 1100 })[kind] * SPEED[G.settings.speed];
 
 /* ---------- Donnes ---------- */
 function newDeal(sameHands) {
-  runToken++;
+  cancelTimers();
   closeModal();
   let hands, board;
   if (sameHands && G.game) { hands = G.game.hands; board = G.game.board; }
@@ -100,10 +113,14 @@ function newDeal(sameHands) {
   const info = B.boardInfo(board);
   G.game = { board, dealer: info.dealer, vul: info.vul, hands, auction: [], phase: 'bidding', play: null, contract: null, undo: [], selCall: null, result: null, recorded: false };
   thinking = -1; holdTrick = false; bidLevel = null; selected = null; hintCard = null; lastPlayed = null;
+  fly = null; dealAnim = true; dummyRevealKey = null; newBidIdx = -1; robotActed = true; shownWon = [0, 0];
   screen = 'game';
   save();
+  snd('shuffle');
+  dealing = anim();
   render();
-  step();
+  const tok = runToken;
+  setTimeout(() => { if (tok !== runToken) return; dealing = false; step(); }, dealing ? 900 : 0);
 }
 function userControls(seat) {
   const g = G.game;
@@ -119,19 +136,32 @@ function pushUndo() {
 /* ---------- Déroulement : les robots jouent jusqu'au tour de l'utilisatrice ---------- */
 function step() {
   const g = G.game;
-  if (!g || screen !== 'game') return;
+  if (!g || screen !== 'game' || dealing) return;
+  if (robotPending) { render(); return; }
   const tok = runToken;
   if (g.phase === 'bidding') {
     if (B.auctionEnded(g.auction)) { finishAuction(); return; }
     const seat = (g.dealer + g.auction.length) % 4;
-    if (seat === 2) { thinking = -1; render(); return; }
+    if (seat === 2) {
+      thinking = -1;
+      if (robotActed) { robotActed = false; bidboxEnter = true; setTimeout(() => snd('turn'), 120); }
+      render();
+      return;
+    }
     thinking = seat;
+    robotPending = true;
     render();
     setTimeout(() => {
       if (tok !== runToken) return;
+      robotPending = false;
+      if ((g.dealer + g.auction.length) % 4 !== seat || B.auctionEnded(g.auction)) { step(); return; }
       const r = B.decide(g.hands[seat], g.auction, g.dealer);
       g.auction.push(r.call);
       g.selCall = g.auction.length - 1;
+      newBidIdx = g.auction.length - 1;
+      robotActed = true;
+      snd('bid');
+      say(SEATN[seat] + ' : ' + B.sound.callWords(r.call));
       thinking = -1;
       save();
       step();
@@ -143,11 +173,19 @@ function step() {
     if (holdTrick) return;
     if (p.done) { finishPlay(); return; }
     const seat = p.turn;
-    if (userControls(seat)) { thinking = -1; render(); return; }
+    if (userControls(seat)) {
+      thinking = -1;
+      if (robotActed) { robotActed = false; snd('turn'); }
+      render();
+      return;
+    }
     thinking = seat;
+    robotPending = true;
     render();
     setTimeout(() => {
       if (tok !== runToken) return;
+      robotPending = false;
+      if (p.turn !== seat || p.done || holdTrick) { step(); return; }
       const r = B.chooseCard(p, seat);
       doPlay(seat, r.card);
     }, p.tricks.length === 0 && !p.trick.length ? delay('lead') : delay('card'));
@@ -155,7 +193,10 @@ function step() {
 }
 function doPlay(seat, card) {
   const g = G.game, p = g.play, tok = runToken;
+  fly = anim() ? flyOrigin(seat, card) : null;
   const res = B.playCard(p, seat, card);
+  snd('card');
+  robotActed = !userControls(seat);
   lastPlayed = card;
   thinking = -1;
   selected = null; hintCard = null;
@@ -165,9 +206,12 @@ function doPlay(seat, card) {
     render();
     setTimeout(() => {
       if (tok !== runToken) return;
-      holdTrick = false;
-      lastPlayed = null;
-      step();
+      collectTrick(res.winner, () => {
+        if (tok !== runToken) return;
+        holdTrick = false;
+        lastPlayed = null;
+        step();
+      });
     }, delay('trick'));
   } else step();
 }
@@ -176,6 +220,7 @@ function finishAuction() {
   const ct = B.contractOf(g.auction, g.dealer);
   thinking = -1;
   if (!ct) {
+    say('Donne passée.');
     g.phase = 'end';
     g.result = { passed: true, ns: 0 };
     record();
@@ -196,6 +241,7 @@ function finishAuction() {
   else if (ns) msg += '<br>Vous jouez aussi les cartes du mort (Nord).';
   else msg += (g.play.leader === 2 ? '<br>C\'est à vous d\'entamer.' : '<br>' + SEATN[g.play.leader] + ' entame.');
   toast(msg, 4200);
+  say('Contrat : ' + B.sound.callWords(ct.level + ct.den) + (ct.dbl === 2 ? ' surcontré' : ct.dbl === 1 ? ' contré' : '') + ', joué par ' + (decl === 2 ? 'vous' : SEATN[decl]) + '.');
   save();
   step();
 }
@@ -208,6 +254,12 @@ function finishPlay() {
   record();
   save();
   render();
+  const good = (B.sideOf(ct.declarer) === 0) === g.result.made;
+  const diff = tricks - (ct.level + 6);
+  snd(good ? 'success' : 'fail');
+  if (B.sideOf(ct.declarer) === 0) say(g.result.made ? 'Contrat réussi !' : 'Chute de ' + (-diff) + '.');
+  else say(g.result.made ? 'Les adversaires réussissent leur contrat.' : 'Bravo, le contrat adverse chute !');
+  if (good && anim()) confetti();
 }
 function record() {
   const g = G.game;
@@ -236,6 +288,9 @@ function submitCall(call, force) {
   pushUndo();
   g.auction.push(call);
   g.selCall = g.auction.length - 1;
+  newBidIdx = g.auction.length - 1;
+  robotActed = false;
+  snd('bid');
   bidLevel = null;
   save();
   step();
@@ -263,18 +318,19 @@ function tapCard(seat, c) {
   if (!leg.includes(c)) {
     const el = document.querySelector(`.card[data-c="${c}"]`);
     if (el) { el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
+    snd('error');
     const ls = B.suitOf(p.trick[0].card);
     toast(`Vous devez fournir à ${su(ls)} ${B.SUIT_NAME[ls]}.`);
     return;
   }
-  if (G.settings.doubleTap && selected !== c) { selected = c; render(); return; }
+  if (G.settings.doubleTap && selected !== c) { selected = c; snd('select'); render(); return; }
   pushUndo();
   doPlay(seat, c);
 }
 function undo() {
   const g = G.game;
   if (!g || !g.undo.length) { toast('Il n\'y a rien à annuler.'); return; }
-  runToken++;
+  cancelTimers();
   // une donne annulée après sa fin ne compte plus dans les résultats
   if (g.recorded) { const h = G.stats.history; if (h.length && h[h.length - 1].board === g.board) h.pop(); }
   const s = g.undo.pop();
@@ -367,7 +423,7 @@ function confirmReplay() {
     <div class="btns"><button class="btn primary" data-m="yes">Recommencer</button><button class="btn" data-m="no">Annuler</button></div>`, v => { if (v === 'yes') newDeal(true); });
 }
 function go(s) {
-  runToken++;
+  cancelTimers();
   thinking = -1; holdTrick = false;
   screen = s;
   render();
@@ -412,12 +468,13 @@ function renderGame() {
   const hands = phase === 'bidding' || !p ? g.hands : p.hands;
   const role = s => !g.contract || phase === 'bidding' ? '' : s === decl ? 'déclarant' : s === dummy ? 'mort' : 'défense';
   const tag = s => `<div class="tag ${turn === s && phase !== 'end' ? 'turn' : ''}"><span class="dot"></span>${seatName(s)}${role(s) ? ` <span class="role">· ${role(s)}</span>` : ''}</div>`;
-  const lastCallOf = s => { for (let i = g.auction.length - 1; i >= 0; i--) if ((g.dealer + i) % 4 === s) return g.auction[i]; return null; };
+  const lastCallIdx = s => { for (let i = g.auction.length - 1; i >= 0; i--) if ((g.dealer + i) % 4 === s) return i; return -1; };
   const bubble = s => {
     if (phase !== 'bidding') return '';
-    const c = lastCallOf(s);
-    if (!c) return '';
-    return `<div class="bubble ${c === 'P' ? 'pass' : c === 'X' ? 'dbl' : c === 'XX' ? 'rdbl' : ''}" style="position:relative">${callHTML(c, true)}</div>`;
+    const i = lastCallIdx(s);
+    if (i < 0) return '';
+    const c = g.auction[i];
+    return `<div class="bubble ${c === 'P' ? 'pass' : c === 'X' ? 'dbl' : c === 'XX' ? 'rdbl' : ''} ${i === newBidIdx && anim() ? 'new' : ''}" style="position:relative">${callHTML(c, true)}</div>`;
   };
   const userTurnSeat = phase === 'play' && userControls(turn) && !holdTrick ? turn : -1;
   const legal = userTurnSeat >= 0 ? B.legalCards(p, userTurnSeat) : [];
@@ -443,7 +500,7 @@ function renderGame() {
   // centre
   let center = '';
   if (phase === 'bidding') {
-    if (turn === 2) center = bidboxHTML();
+    if (turn === 2 && !dealing) center = bidboxHTML();
     else if (thinking >= 0) center = `<div class="thinking">${SEATN[thinking]} réfléchit…</div>`;
   } else if (phase === 'play') {
     const shown = holdTrick ? p.tricks[p.tricks.length - 1].cards : p.trick;
@@ -455,7 +512,7 @@ function renderGame() {
         : (isDummy ? 'À vous : <b>carte du mort</b> ↓' : 'À vous de jouer ↓');
     } else if (holdTrick) msg = `Pli pour <b>${B.sideOf(w) === 0 ? 'Nord-Sud' : 'Est-Ouest'}</b>`;
     else if (thinking >= 0 && !shown.length) { msg = `${SEATN[thinking]} réfléchit…`; wait = true; }
-    center = `<div class="trick">${shown.map(x => `<div class="slot s${x.seat} ${x.seat === w ? 'win' : ''}">${cardHTML(x.card, x.card === lastPlayed ? '' : 'nodrop')}</div>`).join('')}
+    center = `<div class="trick">${shown.map(x => `<div class="slot s${x.seat} ${x.seat === w ? 'win' : ''}">${cardHTML(x.card, x.card === lastPlayed && !anim() ? '' : 'nodrop')}</div>`).join('')}
       ${msg ? `<div class="msg ${wait ? 'wait' : ''} ${userTurnSeat >= 0 ? 'at' + userTurnSeat : ''}">${msg}</div>` : ''}</div>`;
   }
   const endHTML = phase === 'end' ? endScreenHTML() : '';
@@ -471,6 +528,7 @@ function renderGame() {
     <aside class="panel">${panelHTML()}</aside>
   </div>`;
   layout();
+  fx();
 }
 
 function backsHTML(n) {
@@ -493,7 +551,9 @@ function bidboxHTML() {
   const levelOk = l => ['C', 'D', 'H', 'S', 'N'].some(d => B.isLegal(l + d, g.auction, g.dealer));
   const dens = [['C', 3], ['D', 2], ['H', 1], ['S', 0], ['N', -1]];
   const hand = g.hands[2];
-  return `<div class="bidbox">
+  const enter = bidboxEnter && anim();
+  bidboxEnter = false;
+  return `<div class="bidbox ${enter ? 'enter' : ''}">
     <div class="title">${bidLevel ? 'Choisissez la couleur' : 'À vous d\'annoncer : choisissez le palier'}</div>
     <div class="row levels">${lv.map(l => `<button data-act="lvl:${l}" class="${bidLevel === l ? 'on' : ''}" ${levelOk(l) ? '' : 'disabled'}>${l}</button>`).join('')}</div>
     <div class="row dens">${dens.map(([d, s]) => {
@@ -522,7 +582,7 @@ function panelHTML() {
     const ct = g.contract;
     const side = B.sideOf(ct.declarer);
     html += `<div class="contract"><div class="big">${contractHTML(ct)} <span style="font-size:20px;color:var(--muted)">par ${ct.declarer === 2 ? 'vous' : SEATN[ct.declarer]}</span></div>
-      <div class="tricks"><span>Nord-Sud<b>${p.won[0]}</b></span><span>Est-Ouest<b>${p.won[1]}</b></span></div>
+      <div class="tricks"><span>Nord-Sud<b class="${bumpCls(0)}">${p.won[0]}</b></span><span>Est-Ouest<b class="${bumpCls(1)}">${p.won[1]}</b></span></div>
       <div class="goal">Il faut <b>${ct.level + 6} plis</b> au camp ${side === 0 ? 'Nord-Sud' : 'Est-Ouest'} (les défenseurs en veulent ${8 - ct.level}).</div></div>`;
   }
   html += auctionHTML() + explainHTML();
@@ -619,6 +679,116 @@ function endScreenHTML() {
   </div></div>`;
 }
 
+/* ---------- Animations ---------- */
+function bumpCls(i) {
+  const p = G.game.play;
+  if (!shownWon) shownWon = p.won.slice();
+  const up = p.won[i] > shownWon[i] && anim();
+  return up ? 'bump' : '';
+}
+function flyOrigin(seat, card) {
+  const z = '.zone-' + 'nesw'[seat];
+  const el = document.querySelector(`${z} .card[data-c="${card}"]`);
+  if (el) return { card, rect: el.getBoundingClientRect(), face: true };
+  const b = document.querySelector(`${z} .backs`) || document.querySelector(`${z} .tag`);
+  return b ? { card, rect: b.getBoundingClientRect(), face: false } : null;
+}
+const center = r => [r.left + r.width / 2, r.top + r.height / 2];
+function fx() {
+  const g = G.game;
+  if (g && g.play) shownWon = g.play.won.slice();
+  newBidIdx = -1;
+  if (!anim()) { fly = null; dealAnim = false; return; }
+  const t = document.getElementById('table');
+  if (!t) return;
+  // distribution : les cartes partent du centre du tapis
+  if (dealAnim) {
+    dealAnim = false;
+    const [cx, cy] = center(t.getBoundingClientRect());
+    const els = [...t.querySelectorAll('.zone-s .hand .card')];
+    const others = ['n', 'e', 'w'].map(z => [...t.querySelectorAll(`.zone-${z} .backs .card`)]);
+    els.forEach((el, i) => {
+      const [x, y] = center(el.getBoundingClientRect());
+      el.animate([{ transform: `translate(${cx - x}px, ${cy - y}px) rotate(${(Math.random() * 40 - 20).toFixed(0)}deg) scale(.45)`, opacity: 0 },
+        { transform: 'none', opacity: 1 }], { duration: 430, delay: 40 + i * 55, easing: 'cubic-bezier(.2,.8,.25,1)', fill: 'backwards' });
+    });
+    others.forEach((list, k) => list.forEach((el, i) => {
+      const [x, y] = center(el.getBoundingClientRect());
+      el.animate([{ transform: `translate(${cx - x}px, ${cy - y}px) scale(.6)`, opacity: 0 }, { transform: 'none', opacity: 1 }],
+        { duration: 380, delay: 60 + (i * 3 + k) * 55, easing: 'cubic-bezier(.2,.8,.25,1)', fill: 'backwards' });
+    }));
+  }
+  // la carte jouée vole de la main (ou du paquet du robot) jusqu'au pli
+  if (fly) {
+    const f = fly;
+    fly = null;
+    const el = t.querySelector(`.trick .card[data-c="${f.card}"]`);
+    if (el) {
+      const to = el.getBoundingClientRect();
+      const [fx0, fy0] = center(f.rect), [tx, ty] = center(to);
+      const sc = Math.max(0.4, Math.min(1.6, f.rect.width / to.width));
+      const rot = (Math.random() * 24 - 12).toFixed(0);
+      el.animate([
+        { transform: `translate(${fx0 - tx}px, ${fy0 - ty}px) scale(${f.face ? sc : 0.5}) rotate(${rot}deg)`, opacity: f.face ? 1 : 0.2 },
+        { transform: 'translate(0, 0) scale(1.08) rotate(0deg)', opacity: 1, offset: 0.8 },
+        { transform: 'none', opacity: 1 }], { duration: 400, easing: 'cubic-bezier(.2,.75,.3,1)' });
+    }
+  }
+  // le mort s'étale après l'entame
+  if (g && g.phase === 'play' && B.dummyShown(g.play) && dummyRevealKey !== g.board) {
+    dummyRevealKey = g.board;
+    const cards = [...t.querySelectorAll('.dummy .card')];
+    if (cards.length > 1 && cards.length >= g.play.hands[g.play.dummy].length - 1) {
+      snd('dummy');
+      cards.forEach((el, i) => el.animate([{ transform: 'translateY(-26px) scale(.8)', opacity: 0 }, { transform: 'none', opacity: 1 }],
+        { duration: 320, delay: 250 + i * 35, easing: 'cubic-bezier(.2,.9,.3,1.15)', fill: 'backwards' }));
+    }
+  }
+}
+// à la fin du pli, les 4 cartes se regroupent puis glissent vers le camp gagnant
+function collectTrick(w, done) {
+  snd(B.sideOf(w) === 0 ? 'win' : 'lose');
+  const t = document.getElementById('table');
+  const cards = t ? [...t.querySelectorAll('.trick .slot .card')] : [];
+  const tag = t && t.querySelector(`.zone-${'nesw'[w]} .tag`);
+  if (!anim() || !cards.length || !tag) { done(); return; }
+  const msg = t.querySelector('.trick .msg');
+  if (msg) msg.style.opacity = 0;
+  const [cx, cy] = center(t.querySelector('.trick').getBoundingClientRect());
+  const [gx, gy] = center(tag.getBoundingClientRect());
+  cards.forEach((el, i) => {
+    const [x, y] = center(el.getBoundingClientRect());
+    const r = ((i - 1.5) * 7).toFixed(0);
+    el.animate([
+      { transform: 'none', opacity: 1 },
+      { transform: `translate(${cx - x}px, ${cy - y}px) rotate(${r}deg)`, opacity: 1, offset: 0.4 },
+      { transform: `translate(${gx - x}px, ${gy - y}px) rotate(${r}deg) scale(.3)`, opacity: 0 }],
+    { duration: 600, easing: 'cubic-bezier(.5,0,.3,1)', fill: 'forwards' });
+  });
+  setTimeout(done, 620);
+}
+// petite pluie de ♠ ♥ ♦ ♣ quand le contrat est gagné par notre camp
+function confetti() {
+  const t = document.getElementById('table');
+  if (!t) return;
+  const box = document.createElement('div');
+  box.className = 'confetti';
+  t.appendChild(box);
+  const W = t.clientWidth, H = t.clientHeight;
+  for (let i = 0; i < 40; i++) {
+    const d = document.createElement('div');
+    d.className = 'cf';
+    d.innerHTML = su(i % 4);
+    d.style.left = (Math.random() * W).toFixed(0) + 'px';
+    d.style.fontSize = (20 + Math.random() * 24).toFixed(0) + 'px';
+    box.appendChild(d);
+    d.animate([{ transform: 'translate(0, -60px) rotate(0deg)', opacity: 1 },
+      { transform: `translate(${(Math.random() * 140 - 70).toFixed(0)}px, ${H + 60}px) rotate(${(Math.random() * 720 - 360).toFixed(0)}deg)`, opacity: 0.9 }],
+    { duration: 1900 + Math.random() * 1500, delay: Math.random() * 700, easing: 'cubic-bezier(.3,.1,.6,1)', fill: 'both' });
+  }
+  setTimeout(() => box.remove(), 4500);
+}
+
 /* ---------- Mise en page : taille des cartes selon l'écran ---------- */
 function layout() {
   const t = document.getElementById('table');
@@ -670,6 +840,11 @@ function renderSettings() {
     <div class="setting"><div class="lbl">Vitesse des robots</div>${seg('speed', [['lent', 'Lente'], ['normal', 'Normale'], ['rapide', 'Rapide']])}</div>
     <div class="setting"><div class="lbl">Jouer une carte<small>Deux touchers : le 1er soulève la carte, le 2e la joue (évite les erreurs).</small></div>${seg('doubleTap', [[true, '2 touchers'], [false, '1 toucher']])}</div>
     <div class="setting"><div class="lbl">Afficher mes points<small>Le nombre de points H et HL sous la boîte d'enchères.</small></div>${seg('showPoints', [[true, 'Oui'], [false, 'Non']])}</div>
+    <div class="setting"><div class="lbl">Sons<small>Bruit des cartes, petite cloche quand c'est à vous, musique en fin de donne.</small></div>${seg('sound', [[true, 'Oui'], [false, 'Non']])}</div>
+    <div class="setting"><div class="lbl">Volume des sons</div>${seg('volume', [['faible', 'Faible'], ['moyen', 'Moyen'], ['fort', 'Fort']])}</div>
+    <div class="setting"><div class="lbl">Enchères à voix haute<small>Les robots disent leurs enchères avec la voix de l'iPad (« Nord : un cœur »).</small></div>${seg('voice', [[true, 'Oui'], [false, 'Non']])}</div>
+    <div class="setting"><div class="lbl">Animations<small>Les cartes volent jusqu'au centre, les plis glissent vers le gagnant.</small></div>${seg('animations', [[true, 'Oui'], [false, 'Non']])}</div>
+    <button class="btn" data-act="sound-test" style="max-width:420px;margin:6px 0 10px">Tester le son</button>
     <div class="setting"><div class="lbl">Vérifier mes enchères<small>Prévient quand votre enchère s'écarte des fiches du cours.</small></div>${seg('checkBids', [[true, 'Oui'], [false, 'Non']])}</div>
     <div class="setting"><div class="lbl">Les donnes<small>« Plus de jeu » : votre camp a plus souvent la majorité des points.</small></div>${seg('deals', [['hasard', 'Au hasard'], ['jeu', 'Plus de jeu']])}</div>
     <h2>Mes données</h2>
@@ -776,13 +951,23 @@ $app.addEventListener('click', e => {
     const val = w === 'true' ? true : w === 'false' ? false : w;
     G.settings[v] = val;
     save();
+    if (B.sound) { B.sound.configure(G.settings); B.sound.unlock(); }
+    if (v === 'volume' || (v === 'sound' && val)) snd('card');
+    if (v === 'voice' && val) say('Nord : un cœur.');
     render();
+  } else if (k === 'sound-test') {
+    if (B.sound) B.sound.unlock();
+    if (!G.settings.sound && !G.settings.voice) toast('Les sons sont désactivés : choisissez « Oui » à la ligne Sons.');
+    else { snd('success'); say('Le son fonctionne.'); toast('Vous devez entendre une petite musique. Sinon, montez le volume de l\'iPad.', 3600); }
   } else if (k === 'reset-stats') {
     modal(`<h2>Effacer tous vos résultats ?</h2><p>L'historique des donnes jouées sera supprimé de cette tablette.</p>
       <div class="btns"><button class="btn primary" data-m="yes">Effacer</button><button class="btn" data-m="no">Garder</button></div>`, r => { if (r === 'yes') { G.stats.history = []; save(); toast('Résultats effacés.'); } });
   }
 });
-document.addEventListener('visibilitychange', () => { if (!document.hidden && screen === 'game') { runToken++; holdTrick = false; thinking = -1; render(); step(); } });
+// le son ne peut démarrer qu'après un toucher (règle de l'iPad)
+['touchend', 'click'].forEach(ev => document.addEventListener(ev, () => { if (B.sound) B.sound.unlock(); }, { capture: true, passive: true }));
+if (B.sound) B.sound.configure(G.settings);
+document.addEventListener('visibilitychange', () => { if (!document.hidden && screen === 'game') { cancelTimers(); dealing = false; holdTrick = false; thinking = -1; render(); step(); } });
 
 render();
 })();
