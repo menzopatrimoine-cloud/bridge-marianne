@@ -38,7 +38,7 @@ svg.su { width: 0.95em; height: 0.95em; vertical-align: -0.12em; display: inline
 .table::after { content: ''; position: absolute; inset: 10px; border: 2px solid var(--felt-line); border-radius: 24px; pointer-events: none; }
 
 .zone { position: absolute; display: flex; align-items: center; justify-content: center; z-index: 2; }
-.zone-n { top: 10px; left: 50%; transform: translateX(-50%); flex-direction: column; gap: 6px; }
+.zone-n { top: 10px; left: calc(50% + var(--nx, 0px)); transform: translateX(-50%); flex-direction: column; gap: 6px; }
 .zone-s { bottom: 8px; left: 50%; transform: translateX(-50%); flex-direction: column-reverse; gap: 6px; width: 100%; }
 .zone-w { left: 14px; top: var(--cy, 50%); transform: translateY(-50%); flex-direction: column; gap: 8px; }
 .zone-e { right: 14px; top: var(--cy, 50%); transform: translateY(-50%); flex-direction: column; gap: 8px; }
@@ -99,7 +99,7 @@ svg.su { width: 0.95em; height: 0.95em; vertical-align: -0.12em; display: inline
 .backs .count { margin-left: 10px; color: #fff; font-size: 18px; font-weight: 700; opacity: .9; }
 
 /* ---------- Centre : pli et boîte d'enchères ---------- */
-.center { position: absolute; left: var(--cx, 50%); top: var(--cy, 50%); transform: translate(-50%, -50%); z-index: 3; display: flex; align-items: center; justify-content: center; }
+.center { position: absolute; left: var(--cx, 50%); top: var(--cy, 50%); transform: translate(-50%, -50%); z-index: 3; display: flex; align-items: center; justify-content: center; width: max-content; }
 .trick { position: relative; width: calc(var(--cwT) * 3.3); height: calc(var(--cwT) * 1.42 * 2.1); }
 .trick .slot { position: absolute; }
 .trick .slot .card { --cw: var(--cwT); --ch: calc(var(--cwT) * 1.42); animation: drop .22s ease-out; }
@@ -111,12 +111,14 @@ svg.su { width: 0.95em; height: 0.95em; vertical-align: -0.12em; display: inline
 
 .trick .slot .card.nodrop { animation: none; }
 @keyframes drop { from { opacity: 0; transform: scale(1.15); } to { opacity: 1; transform: none; } }
-.trick .msg { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #fff; font-size: 20px; font-weight: 700;
-  text-align: center; background: rgba(10, 30, 22, .82); border: 2px solid var(--gold); border-radius: 16px; padding: 8px 14px; line-height: 1.3;
-  z-index: 3; white-space: nowrap; box-shadow: 0 4px 12px rgba(0,0,0,.3); }
-.trick .msg.at0 { top: calc(var(--cwT) * 0.71); }
-.trick .msg.at2 { top: auto; bottom: calc(var(--cwT) * 0.71 - 22px); transform: translate(-50%, 0); }
-.trick .msg.wait { border-color: transparent; background: rgba(10, 30, 22, .6); font-weight: 600; }
+/* message du coup (« À vous de jouer », « Pli pour… ») : dans le coin en haut à droite, jamais sur les cartes */
+.status { position: absolute; top: 18px; right: 18px; z-index: 6; color: #fff; font-size: 19px; font-weight: 600; text-align: center;
+  background: rgba(10, 30, 22, .82); border: 2px solid transparent; border-radius: 16px; padding: 8px 16px; line-height: 1.3;
+  box-shadow: 0 4px 12px rgba(0,0,0,.3); transition: opacity .2s; }
+.status b { font-weight: 800; }
+.status.me { border-color: var(--gold); box-shadow: 0 0 0 4px rgba(201,163,74,.35), 0 4px 12px rgba(0,0,0,.3); animation: nudge 1.6s ease-in-out infinite; }
+@keyframes nudge { 50% { transform: translateY(3px); } }
+.status.wait { background: rgba(10, 30, 22, .6); }
 
 .bubble { position: absolute; background: #fff; color: var(--ink); border-radius: 14px; padding: 6px 14px; font-weight: 800; font-size: 24px;
   box-shadow: 0 3px 10px rgba(0,0,0,.35); white-space: nowrap; z-index: 4; }
@@ -124,7 +126,7 @@ svg.su { width: 0.95em; height: 0.95em; vertical-align: -0.12em; display: inline
 @keyframes pop { from { transform: scale(.2); opacity: 0; } to { transform: none; opacity: 1; } }
 .bubble.pass { background: #dff1d8; } .bubble.dbl { background: #f9d6d0; } .bubble.rdbl { background: #d6e4f9; }
 
-.bidbox { background: var(--cream); border-radius: 22px; padding: 16px 18px 14px; box-shadow: 0 10px 30px rgba(0,0,0,.45); width: min(560px, 92%);
+.bidbox { background: var(--cream); border-radius: 22px; padding: 16px 18px 14px; box-shadow: 0 10px 30px rgba(0,0,0,.45); width: var(--bbw, 420px); scale: var(--bbs, 1);
   display: flex; flex-direction: column; gap: 12px; position: relative; z-index: 5; }
 .bidbox.enter { animation: rise .4s cubic-bezier(.2,.9,.3,1.12); }
 @keyframes rise { from { transform: translateY(40px) scale(.92); opacity: 0; } to { transform: none; opacity: 1; } }
@@ -197,7 +199,10 @@ svg.su { width: 0.95em; height: 0.95em; vertical-align: -0.12em; display: inline
 .explain .pts { font-size: 19px; font-weight: 800; margin-top: 6px; }
 .explain .forcing { display: inline-block; margin-top: 6px; background: #fdecc8; color: #7a4b00; border-radius: 8px; padding: 2px 10px; font-weight: 700; font-size: 16px; }
 .explain .txt { font-size: 18px; line-height: 1.4; margin-top: 8px; }
-.explain .fiche { font-size: 15px; color: var(--muted); margin-top: 8px; border-top: 1px dashed var(--line); padding-top: 6px; }
+.explain .fiche { font-size: 16px; color: var(--navy); margin-top: 8px; border: 0; border-top: 1px dashed var(--line); padding: 8px 0 2px; background: none;
+  display: flex; align-items: center; gap: 8px; text-align: left; width: 100%; font-weight: 600; }
+.explain .fiche .ico { width: 22px; height: 22px; flex: none; }
+.explain .fiche u { color: var(--gold); font-weight: 800; white-space: nowrap; }
 .explain .empty { color: var(--muted); font-size: 17px; }
 
 .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 10px 16px 14px; border-top: 1px solid var(--line); background: var(--cream); }
@@ -227,7 +232,7 @@ svg.su { width: 0.95em; height: 0.95em; vertical-align: -0.12em; display: inline
 .sheet .mini-trick .card { --cw: 86px; --ch: 122px; }
 .sheet .mini-trick .win .card { box-shadow: 0 0 0 4px var(--gold); }
 
-.toast { position: fixed; left: 50%; top: calc(16px + env(safe-area-inset-top)); transform: translateX(-50%); background: var(--navy); color: #fff; font-size: 20px; font-weight: 700;
+.toast { position: fixed; pointer-events: none; width: max-content; left: 50%; top: calc(16px + env(safe-area-inset-top)); transform: translateX(-50%); background: var(--navy); color: #fff; font-size: 20px; font-weight: 700;
   padding: 14px 24px; border-radius: 16px; z-index: 60; box-shadow: 0 8px 24px rgba(0,0,0,.35); max-width: 90vw; text-align: center; animation: fade .2s; }
 
 /* ---------- Pages (accueil, réglages, résultats, aide) ---------- */
@@ -291,3 +296,40 @@ table.hist td.ok { color: var(--ok); font-weight: 800; } table.hist td.ko { colo
 .trick-list th { font-size: 15px; color: var(--muted); }
 .trick-list td.lead { text-decoration: underline; text-underline-offset: 4px; }
 .trick-list td.w { background: var(--gold-soft); font-weight: 800; }
+
+/* ---------- Adversaires : visage et nom ---------- */
+svg.av { clip-path: circle(50%); flex: none; display: block; }
+.tag.perso { padding: 4px 16px 4px 4px; gap: 9px; cursor: pointer; }
+.tag.perso svg.av { width: 48px; height: 48px; }
+.tag.perso .nm { display: flex; flex-direction: column; line-height: 1.12; text-align: left; }
+.tag.perso .nm b { font-weight: 800; display: flex; align-items: center; gap: 7px; }
+.tag.perso .nm small { font-size: 15px; font-weight: 500; opacity: .85; }
+.perso-card { display: flex; gap: 18px; align-items: center; margin-bottom: 6px; }
+.perso-card svg.av { width: 120px; height: 120px; }
+.perso-card h2 { margin: 0; }
+.perso-card .ttl { font-size: 19px; color: var(--muted); font-weight: 600; }
+.end .quip { display: flex; align-items: center; gap: 12px; background: #fff; border: 2px solid var(--line); border-radius: 16px; padding: 8px 14px 8px 8px;
+  font-size: 19px; text-align: left; margin: 10px 0; }
+.end .quip svg.av { width: 58px; height: 58px; }
+
+/* ---------- Loupe sur une couleur du mort ---------- */
+.sheet.loupe { width: min(900px, 100%); text-align: center; }
+.sheet.loupe p { font-size: 20px; margin: 0 0 6px; }
+.loupe-cards { display: flex; justify-content: center; gap: 12px; padding: 18px 0 6px; }
+.loupe-cards .pick { border: 0; background: none; padding: 0; animation: pop .35s cubic-bezier(.3,1.6,.5,1) backwards; }
+.loupe-cards .pick .card { transition: transform .12s; }
+.loupe-cards .pick:active .card { transform: translateY(-10px) scale(1.04); }
+
+/* ---------- Fiches du cours ---------- */
+.btn.fiche-link { width: 100%; justify-content: flex-start; text-align: left; font-size: 18px; gap: 10px; margin-top: 4px; color: var(--navy); }
+.fiche-list { display: grid; gap: 10px; }
+.fiche-list .btn { justify-content: flex-start; text-align: left; font-size: 19px; gap: 10px; }
+.fiche-view { position: fixed; inset: 0; z-index: 70; background: #3b413e; display: flex; flex-direction: column; animation: fade .15s;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+.fiche-view .bar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--cream); border-bottom: 3px solid var(--gold); }
+.fiche-view .ttl { flex: 1; font-size: 22px; font-weight: 800; color: var(--navy); line-height: 1.2; min-width: 0; }
+.fiche-view .ttl small { display: block; font-size: 17px; font-weight: 600; color: var(--muted); }
+.fiche-view .bar .btn { min-height: 54px; padding: 6px 18px; flex: none; }
+.fiche-view .pages { flex: 1; overflow: auto; -webkit-overflow-scrolling: touch; padding: 16px; }
+.fiche-view .pages img { display: block; width: calc(min(100%, 1000px) * var(--z, 1)); max-width: none; margin: 0 auto 16px; background: #fff;
+  border-radius: 6px; box-shadow: 0 4px 16px rgba(0,0,0,.45); }
