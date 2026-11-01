@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Le Bridge de Marianne</title>
+<meta name="description" content="Jouer au bridge contre trois robots qui annoncent comme dans le cours, avec l'explication de chaque enchère.">
+<meta name="theme-color" content="#1d4a36">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Bridge">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/style.css?v=1">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="su0" viewBox="0 0 100 100"><path fill="currentColor" d="M50 3 C45 15 7 38 7 62 C7 76 18 85 30 85 C39 85 45 81 48 75 C47 85 42 91 33 97 L67 97 C58 91 53 85 52 75 C55 81 61 85 70 85 C82 85 93 76 93 62 C93 38 55 15 50 3 Z"/></symbol>
+    <symbol id="su1" viewBox="0 0 100 100"><path fill="currentColor" d="M50 93 C44 85 5 62 5 33 C5 17 17 7 31 7 C41 7 47 13 50 21 C53 13 59 7 69 7 C83 7 95 17 95 33 C95 62 56 85 50 93 Z"/></symbol>
+    <symbol id="su2" viewBox="0 0 100 100"><path fill="currentColor" d="M50 3 L87 50 L50 97 L13 50 Z"/></symbol>
+    <symbol id="su3" viewBox="0 0 100 100"><g fill="currentColor"><circle cx="50" cy="27" r="20"/><circle cx="27" cy="59" r="20"/><circle cx="73" cy="59" r="20"/><circle cx="50" cy="54" r="12"/><path d="M46 56 C46 77 41 89 32 97 L68 97 C59 89 54 77 54 56 Z"/></g></symbol>
+  </defs>
+</svg>
+<div id="app"></div>
+<div id="modal-root"></div>
+<script src="js/core.js?v=1"></script>
+<script src="js/bidding.js?v=1"></script>
+<script src="js/dd.js?v=1"></script>
+<script src="js/play.js?v=1"></script>
+<script src="js/app.js?v=1"></script>
+<script>
+  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+  }
+</script>
+</body>
+</html>
