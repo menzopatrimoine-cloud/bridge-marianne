@@ -1,4 +1,4 @@
-/* Le Bridge de Marianne — interface tablette */
+/* Le Bridge de Marianne — interface tablette (et téléphone) */
 window.addEventListener("error", e => { window.__err = (window.__err || "") + e.message + " @" + e.lineno + (e.error && e.error.stack ? " [" + e.error.stack.split("\n").slice(1, 6).join(" < ") + "]" : "") + "; "; });
 (function () {
 'use strict';
@@ -35,6 +35,12 @@ let shownWon = null;        // compteurs de plis déjà affichés
 const anim = () => G.settings.animations !== false;
 const snd = n => { if (B.sound) B.sound.play(n); };
 const say = t => { if (B.sound) B.sound.speak(t); };
+// téléphone : petit écran → mise en page compacte (panneau réduit à une barre, main sur deux rangées en portrait)
+const TEL = matchMedia('(max-width: 600px), (max-height: 520px)'), PORTRAIT = matchMedia('(orientation: portrait)');
+const tel = () => TEL.matches;
+const telPortrait = () => TEL.matches && PORTRAIT.matches;
+let panelOpen = false;      // téléphone : enchères et explications ouvertes par-dessus le tapis
+let oneRow = false;         // téléphone : la main repasse sur une rangée si le pli ne tient pas entre les mains
 
 function load() {
   try {
@@ -106,10 +112,12 @@ function toast(msg, ms) {
   d.className = 'toast';
   d.innerHTML = rich(msg);
   // pendant la partie, le message s'affiche sur le panneau : jamais par-dessus les cartes
+  // (sur téléphone en portrait, par-dessus la barre du bas, collé en bas de l'écran)
   const pan = screen === 'game' && document.querySelector('.panel');
   if (pan) {
     const r = pan.getBoundingClientRect();
-    Object.assign(d.style, { left: r.left + r.width / 2 + 'px', top: r.top + 12 + 'px', maxWidth: r.width - 24 + 'px' });
+    Object.assign(d.style, { left: r.left + r.width / 2 + 'px', top: r.top + (tel() ? 8 : 12) + 'px', maxWidth: r.width - (tel() ? 12 : 24) + 'px' });
+    if (telPortrait()) Object.assign(d.style, { top: 'auto', bottom: innerHeight - r.bottom + 6 + 'px' });
   }
   document.body.appendChild(d);
   setTimeout(() => d.remove(), ms || 2600);
@@ -131,6 +139,7 @@ function newDeal(sameHands) {
   cancelTimers();
   closeModal();
   let hands, board;
+  panelOpen = false; oneRow = false;
   if (sameHands && G.game) { hands = G.game.hands; board = G.game.board; }
   else {
     board = G.nextBoard || 1;
@@ -397,8 +406,9 @@ function loupe(c, cards) {
   const g = G.game, s = B.suitOf(c);
   const list = cards.slice().sort((x, y) => B.rankOf(y) - B.rankOf(x));
   const n = list.length;
-  const room = Math.min(900, window.innerWidth - 40) - 48;
-  const cw = Math.max(56, Math.min(130, (room - (n - 1) * 12) / n));
+  const room = Math.min(900, window.innerWidth - 40) - (tel() ? 32 : 48);
+  const perRow = (room - (n - 1) * 12) / n < 64 ? Math.ceil(n / 2) : n;
+  const cw = Math.max(56, Math.min(130, (room - (perRow - 1) * 12) / perRow));
   snd('select');
   modal(`<h2>Les ${su(s)} ${g.play.dummy === 0 ? 'du mort' : 'de ' + nameOf(0)}</h2><p>Touchez la carte que vous voulez jouer.</p>
     <div class="loupe-cards" style="--cw:${cw}px;--ch:${cw * 1.42}px">${list.map((x, i) => `<button class="pick" data-m="${x}" style="animation-delay:${i * 45}ms">${cardHTML(x, x === hintCard ? 'hint' : '')}</button>`).join('')}</div>
@@ -512,6 +522,7 @@ function go(s) {
 /* ---------- Rendu ---------- */
 function render() {
   document.body.classList.toggle('four-colors', !!G.settings.fourColors);
+  document.body.classList.toggle('tel', tel());
   if (screen === 'home') return renderHome();
   if (screen === 'settings') return renderSettings();
   if (screen === 'stats') return renderStats();
@@ -582,7 +593,10 @@ function renderGame() {
     if (phase === 'end') return '';
     return backsHTML(hands[s].length);
   };
-  const south = phase === 'end' ? '' : `<div class="hand" data-seat="2">${B.sortHand(hands[2]).map(c => cardHTML(c, cardCls(2, c))).join('')}</div>`;
+  const rows = phase === 'end' ? [] : handRows(hands[2]);
+  const rowHTML = r => r.map(c => cardHTML(c, cardCls(2, c))).join('');
+  const south = phase === 'end' ? '' : rows.length > 1 ? `<div class="hand two" data-seat="2">${rows.map(r => `<div class="hrow">${rowHTML(r)}</div>`).join('')}</div>`
+    : `<div class="hand" data-seat="2">${rowHTML(rows[0])}</div>`;
   // centre
   let center = '', status = '';
   if (phase === 'bidding') {
@@ -594,14 +608,19 @@ function renderGame() {
     let msg = '', wait = false;
     if (userTurnSeat >= 0) {
       const isDummy = userTurnSeat === dummy;
-      msg = userTurnSeat === 0 ? (isDummy ? 'À vous :<br><b>carte du mort</b> ↑' : `À vous :<br><b>carte de ${nameOf(0)}</b> ↑`)
+      if (tel()) msg = userTurnSeat === 0 ? `À vous : <b>${isDummy ? 'carte du mort' : 'carte de ' + nameOf(0)}</b> ↑`
+        : isDummy ? 'À vous : <b>carte du mort</b> ↓' : '<b>À vous de jouer</b>';
+      else msg = userTurnSeat === 0 ? (isDummy ? 'À vous :<br><b>carte du mort</b> ↑' : `À vous :<br><b>carte de ${nameOf(0)}</b> ↑`)
         : (isDummy ? 'À vous :<br><b>carte du mort</b> ↓' : 'À vous<br><b>de jouer</b> ↓');
-    } else if (holdTrick) msg = `Pli pour<br><b>${B.sideOf(w) === 0 ? 'Nord-Sud' : 'Est-Ouest'}</b>`;
-    else if (thinking >= 0 && !shown.length) { msg = `${nameOf(thinking)}<br>réfléchit…`; wait = true; }
+    } else if (holdTrick) msg = `Pli pour${tel() ? ' ' : '<br>'}<b>${B.sideOf(w) === 0 ? 'Nord-Sud' : 'Est-Ouest'}</b>`;
+    else if (thinking >= 0 && !shown.length) { msg = `${nameOf(thinking)}${tel() ? ' ' : '<br>'}réfléchit…`; wait = true; }
     center = `<div class="trick">${shown.map(x => `<div class="slot s${x.seat} ${x.seat === w ? 'win' : ''}">${cardHTML(x.card, x.card === lastPlayed && !anim() ? '' : 'nodrop')}</div>`).join('')}</div>`;
     if (msg) status = `<div class="status ${wait ? 'wait' : ''} ${userTurnSeat >= 0 ? 'me' : ''}">${msg}</div>`;
+    else if (tel()) status = '<div class="status idle">&nbsp;</div>';   // la barre garde sa hauteur
   }
   const endHTML = phase === 'end' ? endScreenHTML() : '';
+  const sheet = panelOpen && tel(), oldScroll = sheet && document.querySelector('.panel .scroll');
+  const keep = oldScroll ? oldScroll.scrollTop : 0;
   $app.innerHTML = `<div class="game">
     <div class="table" id="table">
       <div class="zone zone-n">${tag(0)}${bubble(0)}${north}</div>
@@ -609,15 +628,31 @@ function renderGame() {
       <div class="zone zone-e">${tag(1)}${bubble(1)}${sideZone(1)}</div>
       <div class="zone zone-s">${tag(2)}${bubble(2)}${south}</div>
       <div class="center">${center}</div>
-      ${status}
+      ${tel() ? '' : status}
       ${endHTML}
     </div>
-    <aside class="panel">${panelHTML()}</aside>
+    <aside class="panel ${sheet ? 'open' : ''}">${panelHTML(tel() ? status : '')}</aside>
   </div>`;
-  layout();
+  if (keep) document.querySelector('.panel .scroll').scrollTop = keep;
+  if (layout() === 'one-row') { oneRow = true; return renderGame(); }
   fx();
 }
 
+// téléphone en portrait : la main sur deux rangées (coupée entre deux couleurs, au plus près du milieu) pour des cartes plus grandes
+function handRows(hand) {
+  const h = B.sortHand(hand), n = h.length;
+  if (!telPortrait() || n < 7 || oneRow) return [h];
+  // pendant les enchères sur un écran bas, une seule rangée : la boîte d'enchères garde des boutons assez grands
+  const cs = getComputedStyle($app);
+  if (G.game.phase === 'bidding' && $app.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) < 680) return [h];
+  let cut = Math.ceil(n / 2), best = 99;
+  for (let i = 1; i < n; i++) {
+    if (B.suitOf(h[i]) === B.suitOf(h[i - 1])) continue;
+    const d = Math.abs(i - n / 2);
+    if (d < best && Math.max(i, n - i) <= Math.ceil(n / 2) + 2) { best = d; cut = i; }
+  }
+  return [h.slice(0, cut), h.slice(cut)];
+}
 function backsHTML(n) {
   if (!n) return '';
   const k = Math.min(n, 5);
@@ -656,12 +691,12 @@ function bidboxHTML() {
   </div>`;
 }
 
-function panelHTML() {
+function panelHTML(status) {
   const g = G.game;
   const p = g.play;
   const vulNS = B.isVul(g.vul, 0), vulEW = B.isVul(g.vul, 1);
   let html = `<div class="scroll">
-    <div class="topline"><span class="boardno">Donne n° ${g.board}</span><button class="menu-btn" data-act="menu"><span class="bars"></span>Menu</button></div>
+    <div class="topline"><span class="boardno">Donne n° ${g.board}</span><button class="menu-btn" data-act="menu"><span class="bars"></span>Menu</button><button class="btn sheet-close" data-act="details">Fermer ✕</button></div>
     <div class="info">Donneur : <b>${seatName(g.dealer)}</b><br>
       Nord-Sud <span class="vul ${vulNS ? 'v' : 'nv'}">${vulNS ? 'vulnérables' : 'non vulnérables'}</span><br>
       Est-Ouest <span class="vul ${vulEW ? 'v' : 'nv'}">${vulEW ? 'vulnérables' : 'non vulnérables'}</span></div>`;
@@ -673,7 +708,15 @@ function panelHTML() {
       <div class="goal">Il faut <b>${ct.level + 6} plis</b> au camp ${side === 0 ? 'Nord-Sud' : 'Est-Ouest'} (les défenseurs en veulent ${8 - ct.level}).</div></div>`;
   }
   html += auctionHTML() + explainHTML();
-  html += `</div><div class="actions">${actionsHTML()}</div>`;
+  html += '</div>';
+  // téléphone : une seule barre avec le message du coup, le contrat et les plis
+  if (tel()) {
+    const ct = g.contract;
+    const sum = ct && g.phase !== 'bidding' ? `<div class="sum">${contractHTML(ct)} par ${nameOf(ct.declarer)} · Nord-Sud <b>${p.won[0]}</b> · Est-Ouest <b>${p.won[1]}</b></div>`
+      : `<div class="sum">Donne n° ${g.board} · Donneur : <b>${seatName(g.dealer)}</b></div>`;
+    html += `<div class="bar ${status ? 'two' : ''}">${status || sum}<button class="menu-btn" data-act="menu"><span class="bars"></span>Menu</button>${status ? sum : ''}</div>`;
+  }
+  html += `<div class="actions">${actionsHTML()}</div>`;
   return html;
 }
 function auctionHTML() {
@@ -723,19 +766,22 @@ const ICONS = {
   cam: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.5"/></svg>',
   pic: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/></svg>',
   book: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 12h7M9 16h7"/></svg>',
+  list: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 4v16M15 4v16"/></svg>',
 };
 function actionsHTML() {
   const g = G.game;
   const p = g.play;
   const canUndo = g.undo.length > 0;
-  if (g.phase === 'bidding') return `<button class="btn gold" data-act="hint">${ICONS.hint}Conseil</button><button class="btn" data-act="undo" ${canUndo ? '' : 'disabled'}>${ICONS.undo}Annuler</button>`;
+  // téléphone : les enchères et leurs explications s'ouvrent par-dessus le tapis
+  const more = tel() ? `<button class="btn ${panelOpen ? 'on' : ''}" data-act="details">${ICONS.list}Enchères</button>` : '';
+  if (g.phase === 'bidding') return `<button class="btn gold" data-act="hint">${ICONS.hint}Conseil</button><button class="btn" data-act="undo" ${canUndo ? '' : 'disabled'}>${ICONS.undo}Annuler</button>${more}`;
   if (g.phase === 'play') {
     const canClaim = B.sideOf(p.declarer) === 0;
     return `<button class="btn gold" data-act="hint">${ICONS.hint}Conseil</button><button class="btn" data-act="undo" ${canUndo ? '' : 'disabled'}>${ICONS.undo}Annuler</button>
       <button class="btn" data-act="last" ${p.tricks.length ? '' : 'disabled'}>${ICONS.last}Dernier pli</button>
-      <button class="btn" data-act="claim" ${canClaim ? '' : 'disabled'}>${ICONS.claim}Réclamer</button>`;
+      <button class="btn" data-act="claim" ${canClaim ? '' : 'disabled'}>${ICONS.claim}Réclamer</button>${more}`;
   }
-  return `<button class="btn primary" data-act="new" style="grid-column:1/-1">Donne suivante</button>`;
+  return `<button class="btn primary" data-act="new" style="grid-column:1/-1">Donne suivante</button>${more}`;
 }
 
 function endScreenHTML() {
@@ -889,17 +935,27 @@ function confetti() {
 }
 
 /* ---------- Mise en page : taille des cartes selon l'écran ---------- */
-function layout() {
+function layout(shrink) {
   const t = document.getElementById('table');
   if (!t) return;
   const W = t.clientWidth, H = t.clientHeight;
   const g = G.game;
-  const f = G.settings.cardSize === 'normal' ? 0.85 : 1;
-  let cw = Math.min((W - 40) / 6.4, (H - 60) / 6.2, 150) * f;
-  cw = Math.max(52, cw);
+  // téléphone : en portrait, Ouest et Est sont en haut de chaque côté de Nord ; en paysage, les noms de Nord et Sud sont à gauche de leurs cartes
+  const isTel = tel(), port = telPortrait();
+  shrink = shrink || 1;
+  const nz = t.querySelector('.zone-n'), sz = t.querySelector('.zone-s'), wz = t.querySelector('.zone-w'), ez = t.querySelector('.zone-e');
+  const f = (G.settings.cardSize === 'normal' ? 0.85 : 1) * shrink;
   const n = g && g.play && g.phase === 'play' ? g.play.hands[2].length : 13;
-  const step = Math.min(cw * 0.66, (W - 36 - cw) / Math.max(1, n - 1));
-  const cwS = cw * 0.74;
+  // main de Sud sur deux rangées (téléphone en portrait) : la plus longue rangée décide de la taille des cartes
+  const rows = [...t.querySelectorAll('.hand.two .hrow')];
+  const long = rows.length ? Math.max(...rows.map(r => r.children.length)) : n;
+  const handW = W - 36 - (isTel && !port ? sz.querySelector('.tag').offsetWidth + 10 : 0);
+  let cw = rows.length ? Math.min(handW / (1 + 0.5 * (long - 1)), 96) * f : Math.min((W - 40) / 6.4, (H - 60) / 6.2, 150) * f;
+  cw = Math.max(52 * shrink, cw);
+  const step = Math.min(cw * 0.66, (handW - cw) / Math.max(1, long - 1));
+  let cwS = cw * 0.74;
+  // téléphone en portrait : les colonnes du mort de Nord tiennent entre les noms d'Ouest et d'Est
+  if (port) cwS = Math.max(34, Math.min(cwS, (W - 2 * (Math.max(wz.querySelector('.tag').offsetWidth, ez.querySelector('.tag').offsetWidth) + 8) - 12) / 4.42));
   // hauteur visible de chaque carte dans les colonnes du mort
   const maxLen = g && g.play ? Math.max(1, ...[0, 1, 2, 3].map(s => g.play.hands[0].filter(c => B.suitOf(c) === s).length)) : 6;
   const vstep = Math.min(cwS * 1.42 * 0.33, (H * 0.36 - cwS * 1.42) / Math.max(1, maxLen - 1));
@@ -907,45 +963,62 @@ function layout() {
   const st = t.style;
   st.setProperty('--cw', cw + 'px'); st.setProperty('--ch', cw * 1.42 + 'px'); st.setProperty('--step', step + 'px');
   st.setProperty('--cwS', cwS + 'px'); st.setProperty('--vstep', Math.max(cwS * 0.42, vstep) + 'px');
-  const nz = t.querySelector('.zone-n'), sz = t.querySelector('.zone-s');
   // le coin en haut à droite est réservé au message du coup : Nord se décale un peu à gauche si la place manque
+  // (sur téléphone, le message est dans la barre du bas)
   let nx = 0;
-  if (g && g.phase === 'play') {
+  if (!isTel && g && g.phase === 'play') {
     const right = W / 2 - nz.offsetWidth / 2, need = 196 + 18 + 12;
     if (right < need) nx = -Math.min(need - right, Math.max(0, right - 16));
   }
   st.setProperty('--nx', nx + 'px');
-  const top = nz.offsetTop + nz.offsetHeight, bottom = sz.offsetTop + (sz.querySelector('.hand') ? 22 : 0);
+  let top = nz.offsetTop + nz.offsetHeight;
+  const bottom = sz.offsetTop + (sz.querySelector('.hand') ? 22 : 0);
   // mort sur le côté (Est ou Ouest) : rangées qui se recouvrent, à la taille de l'espace libre
   const side = t.querySelector('.dummy.rows');
   const sideRows = side ? side.querySelectorAll('.row').length : 4;
-  const availSide = bottom - top + 30;
-  let cwD = cwS;
-  const tagH = side ? side.parentElement.querySelector('.tag').offsetHeight + 9 : 50;
-  if (tagH + cwD * (1.42 + 0.62 * (sideRows - 1)) > availSide) cwD = Math.max(44, (availSide - tagH) / (1.42 + 0.62 * (sideRows - 1)));
-  const hstep = Math.max(cwD * 0.36, Math.min(cwD * 0.45, (W * 0.27 - cwD) / Math.max(1, sideMax - 1)));
+  let cwD = cwS, hstep;
+  if (port) {
+    // téléphone en portrait : dans le coin en haut, à la largeur laissée par Nord
+    const avail = (W - nz.offsetWidth) / 2 - 14;
+    cwD = Math.max(32, Math.min(cw * 0.74, avail / (1 + 0.3 * (sideMax - 1))));
+    hstep = Math.max(cwD * 0.3, Math.min(cwD * 0.45, (avail - cwD) / Math.max(1, sideMax - 1)));
+  } else {
+    const availSide = bottom - top + 30;
+    const tagH = side ? side.parentElement.querySelector('.tag').offsetHeight + 9 : 50;
+    if (tagH + cwD * (1.42 + 0.62 * (sideRows - 1)) > availSide) cwD = Math.max(44, (availSide - tagH) / (1.42 + 0.62 * (sideRows - 1)));
+    hstep = Math.max(cwD * 0.36, Math.min(cwD * 0.45, (W * 0.27 - cwD) / Math.max(1, sideMax - 1)));
+  }
   st.setProperty('--cwD', cwD + 'px'); st.setProperty('--rstep', cwD * 0.62 + 'px'); st.setProperty('--hstep', hstep + 'px');
-  const sideSeat = side ? +side.dataset.seat : -1;
+  if (port) top = Math.max(top, wz.offsetTop + wz.offsetHeight, ez.offsetTop + ez.offsetHeight);
+  const sideSeat = side && !port ? +side.dataset.seat : -1;
   st.setProperty('--cx', sideSeat === 1 ? `calc(50% - ${W * 0.05}px)` : sideSeat === 3 ? `calc(50% + ${W * 0.05}px)` : '50%');
   // le pli au centre : aussi grand que possible dans l'espace libre entre Nord et Sud
-  const cwT = Math.max(46, Math.min(cw * 0.74, (bottom - top - 14) / (1.42 * 2.1)));
+  const cwT = Math.max(46, Math.min(cw * (isTel ? 0.9 : 0.74), (bottom - top - 14) / (1.42 * 2.1)));
   st.setProperty('--cwT', cwT + 'px');
   st.setProperty('--cy', ((top + bottom) / 2) + 'px');
+  let short = g && g.phase === 'play' && bottom - top - 14 < 46 * 1.42 * 2.1;
   // boîte d'enchères : toute la largeur libre entre Ouest et Est, et jamais par-dessus les cartes de Sud
   const bb = t.querySelector('.bidbox');
   if (bb) {
-    const wz = t.querySelector('.zone-w'), ez = t.querySelector('.zone-e');
-    const sides = Math.max(wz.offsetLeft + wz.offsetWidth, W - ez.offsetLeft);
-    st.setProperty('--bbw', Math.max(300, Math.min(560, W - 2 * sides - 16)) + 'px');
-    // en haut : sous le nom et l'enchère de Nord (le dos de ses cartes peut être recouvert)
+    const sides = port ? 0 : Math.max(wz.offsetLeft + wz.offsetWidth, W - ez.offsetLeft);
+    st.setProperty('--bbw', Math.max(isTel ? 280 : 300, Math.min(560, W - 2 * sides - 16)) + 'px');
+    // en haut : sous le nom et l'enchère de Nord (le dos de ses cartes peut être recouvert) — et d'Ouest et d'Est sur téléphone en portrait
     let nb = nz.offsetTop;
-    for (const e of nz.querySelectorAll('.tag, .bubble')) nb = Math.max(nb, nz.offsetTop + e.offsetTop + e.offsetHeight);
+    for (const z of port ? [nz, wz, ez] : [nz]) for (const e of z.querySelectorAll('.tag, .bubble')) nb = Math.max(nb, z.offsetTop + e.offsetTop + e.offsetHeight);
     const hb = sz.offsetTop + 22;
     st.setProperty('--bbs', Math.max(0.55, Math.min(1, (hb - nb - 16) / bb.offsetHeight)));
     st.setProperty('--cy', ((nb + hb) / 2) + 'px');
+    short = hb - nb - 16 < bb.offsetHeight * 0.55;
   }
+  // téléphone : si le pli ou la boîte d'enchères ne tient pas entre les mains, on réduit un peu les cartes
+  if (isTel && short && shrink > 0.75) return layout(shrink - 0.08);
+  if (isTel && short && rows.length) return 'one-row';
+  const pan = document.querySelector('.panel');
+  if (isTel && pan) { pan.style.setProperty('--barH', pan.offsetHeight + 'px'); pan.style.setProperty('--panW', pan.offsetWidth + 'px'); }
 }
-window.addEventListener('resize', () => { if (screen === 'game') layout(); });
+window.addEventListener('resize', () => { if (screen === 'game' && layout() === 'one-row') { oneRow = true; render(); } });
+// passage tablette ↔ téléphone, ou portrait ↔ paysage sur téléphone : la mise en page change, on redessine
+[TEL, PORTRAIT].forEach(m => m.addEventListener('change', () => { oneRow = false; render(); }));
 
 /* ---------- Pages ---------- */
 function seg(key, opts) {
@@ -1020,7 +1093,7 @@ function renderHelp() {
     <ul>
       <li>Quand c'est à vous, la boîte d'enchères apparaît au milieu du tapis : touchez d'abord le <b>palier</b> (1 à 7), puis la <b>couleur</b> (${su(3)} ${su(2)} ${su(1)} ${su(0)} ou SA).</li>
       <li>Les boutons <b>Passe</b>, <b>Contre</b> et <b>Surcontre</b> sont juste en dessous.</li>
-      <li>Dans le tableau des enchères à droite, <b>touchez une enchère</b> pour voir ce qu'elle veut dire : nombre de points, nombre de cartes dans chaque couleur, et la fiche du cours qui en parle. Un rond orange <span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:#e8590c;color:#fff;text-align:center;font-size:14px;line-height:20px">!</span> signale une enchère conventionnelle (alerte).</li>
+      <li>Dans le tableau des enchères à droite (sur téléphone : bouton « Enchères » en bas), <b>touchez une enchère</b> pour voir ce qu'elle veut dire : nombre de points, nombre de cartes dans chaque couleur, et la fiche du cours qui en parle. Un rond orange <span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:#e8590c;color:#fff;text-align:center;font-size:14px;line-height:20px">!</span> signale une enchère conventionnelle (alerte).</li>
       <li>Si votre enchère s'écarte du cours, l'application vous le signale et vous laisse choisir (réglable).</li>
     </ul>
     <h2>Le jeu de la carte</h2>
@@ -1384,6 +1457,7 @@ $app.addEventListener('click', e => {
   else if (k === 'bid') { if (bidLevel) submitCall(bidLevel + v); }
   else if (k === 'call') submitCall(v);
   else if (k === 'sel') { G.game.selCall = +v; save(); render(); }
+  else if (k === 'details') { panelOpen = !panelOpen; render(); }
   else if (k === 'set') {
     const val = w === 'true' ? true : w === 'false' ? false : w;
     G.settings[v] = val;

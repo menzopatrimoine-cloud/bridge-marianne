@@ -30,8 +30,8 @@ svg.su { width: 0.95em; height: 0.95em; vertical-align: -0.12em; display: inline
 #app { position: absolute; inset: 0; display: grid; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
 
 /* ---------- Écran de jeu ---------- */
-.game { display: grid; grid-template-columns: 1fr clamp(300px, 29vw, 390px); grid-template-rows: 1fr; height: 100%; min-height: 0; }
-@media (orientation: portrait) { .game { grid-template-columns: 1fr; grid-template-rows: 1fr minmax(300px, 37vh); } }
+.game { display: grid; grid-template-columns: minmax(0, 1fr) clamp(300px, 29vw, 390px); grid-template-rows: minmax(0, 1fr); height: 100%; min-height: 0; }
+@media (orientation: portrait) { .game { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(300px, 37vh); } }
 
 .table { position: relative; min-height: 0; min-width: 0; overflow: hidden;
   background: radial-gradient(ellipse at 50% 45%, #2a7354 0%, var(--felt) 45%, var(--felt-dark) 100%); }
@@ -443,3 +443,144 @@ svg.av, img.av { clip-path: circle(50%); flex: none; display: block; object-fit:
 .rv-ctrl { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); border-top: 2px solid var(--line); }
 .rv-ctrl .btn { min-height: 52px; font-size: 18px; }
 @media (orientation: portrait) { .rv-ctrl { grid-template-columns: repeat(3, 1fr); } }
+
+/* ---------- Téléphone : panneau réduit à une barre, tout pour le tapis ---------- */
+.panel .bar, .sheet-close { display: none; }
+body.tel .table::after { inset: 5px; border-radius: 16px; }
+body.tel .panel .scroll { display: none; }
+body.tel .panel .bar { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 8px; row-gap: 4px; padding: 7px 10px 0; }
+body.tel .bar .sum { font-size: 15px; color: var(--muted); line-height: 1.25; }
+body.tel .bar.two .sum { grid-column: 1 / -1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body.tel .bar .sum b { color: var(--ink); }
+body.tel .bar .status { position: static; width: auto; font-size: 16px; text-align: left; padding: 6px 10px; border-radius: 12px; box-shadow: none; animation: none; }
+body.tel .bar .status.me { box-shadow: 0 0 0 3px rgba(201,163,74,.35); }
+body.tel .bar .status.idle { background: none; }
+body.tel .toast { font-size: 16px; padding: 10px 14px; border-radius: 14px; }
+body.tel .menu-btn { font-size: 16px; padding: 9px 12px; flex: none; }
+body.tel .actions { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px; padding: 7px 8px 8px; border-top: 0; }
+body.tel .actions .btn { flex-direction: column; gap: 2px; font-size: 14px; line-height: 1.1; min-height: 56px; padding: 4px 2px; border-radius: 12px; text-align: center; }
+body.tel .actions .btn.primary { flex-direction: row; font-size: 19px; }
+body.tel .actions .btn .ico { width: 22px; height: 22px; }
+body.tel .actions .btn.on { background: var(--navy); color: #fff; border-color: var(--navy); }
+/* enchères et explications : par-dessus le tapis, au-dessus de la barre */
+body.tel .panel.open .scroll { display: flex; flex-direction: column; position: fixed; z-index: 40; left: 0; right: 0; top: 0; bottom: var(--barH, 140px);
+  background: var(--cream); padding: calc(10px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right)) 12px calc(12px + env(safe-area-inset-left));
+  box-shadow: 0 6px 24px rgba(0,0,0,.35); border-bottom: 3px solid var(--gold); animation: fade .15s; }
+body.tel .panel.open .topline .menu-btn { display: none; }
+body.tel .sheet-close { display: flex; min-height: 46px; font-size: 17px; padding: 4px 14px; flex: none; }
+
+/* noms des joueurs : plus petits */
+body.tel .tag { font-size: 15px; padding: 4px 10px; }
+body.tel .tag.perso { padding: 3px 9px 3px 3px; gap: 6px; }
+body.tel .tag.perso .av { width: 34px; height: 34px; }
+body.tel .tag.perso .nm small { font-size: 12px; }
+body.tel .tag.perso .nm b { gap: 5px; }
+body.tel .tag .dot { width: 8px; height: 8px; }
+body.tel .tag.turn { box-shadow: 0 0 0 3px rgba(201,163,74,.35); }
+body.tel .wl i { font-size: 11px; padding: 0 5px; }
+body.tel .tag .wl { gap: 2px; }
+body.tel .zone-w .tag.perso, body.tel .zone-e .tag.perso { padding: 5px 7px 4px; column-gap: 5px; row-gap: 2px; border-radius: 16px; }
+body.tel .bubble { font-size: 19px; padding: 3px 10px; border-radius: 11px; }
+body.tel .backs .count { font-size: 15px; margin-left: 6px; }
+body.tel .thinking { font-size: 17px; padding: 8px 14px; }
+body.tel .zone-n { top: 7px; }
+body.tel .zone-s { bottom: 6px; gap: 4px; }
+body.tel .bidbox { padding: 12px 12px 10px; gap: 9px; border-radius: 18px; }
+body.tel .bidbox .title { font-size: 18px; }
+body.tel .bidbox .row { gap: 5px; }
+body.tel .bidbox button { min-height: 52px; font-size: 25px; border-radius: 11px; }
+body.tel .bidbox .calls button { font-size: 18px; min-height: 48px; }
+body.tel .bidbox .pts { font-size: 16px; }
+/* main sur deux rangées : la 2e recouvre le bas de la 1re */
+.hand.two { flex-direction: column; align-items: center; }
+.hand.two .hrow { display: flex; align-items: flex-end; }
+.hand.two .hrow + .hrow { margin-top: calc(var(--ch) * -0.52); }
+@media (orientation: portrait) {
+  body.tel .game { grid-template-rows: minmax(0, 1fr) auto; }
+  body.tel .panel { border-top-width: 2px; }
+  /* Ouest et Est en haut, de chaque côté de Nord : le milieu reste libre pour le pli */
+  body.tel .zone-w, body.tel .zone-e { top: 7px; transform: none; gap: 5px; }
+  body.tel .zone-w { left: 7px; } body.tel .zone-e { right: 7px; }
+}
+@media (orientation: landscape) {
+  body.tel .game { grid-template-columns: minmax(0, 1fr) 158px; }
+  body.tel .panel { border-left-width: 2px; }
+  body.tel .panel .bar { display: flex; flex-direction: column; align-items: stretch; padding: 8px 8px 0; }
+  body.tel .panel .bar .menu-btn { order: -1; justify-content: center; }
+  body.tel .bar .sum, body.tel .bar.two .sum { font-size: 14px; white-space: normal; }
+  body.tel .bar .status { font-size: 15px; padding: 4px 8px; }
+  body.tel .bar .status.idle { display: none; }
+  body.tel .toast { font-size: 15px; padding: 10px 10px; }
+  body.tel .actions { flex: 1; min-height: 0; grid-auto-flow: row; grid-auto-rows: minmax(36px, 58px); grid-auto-columns: auto; align-content: start; }
+  body.tel .actions .btn { flex-direction: row; min-height: 38px; font-size: 14px; gap: 6px; justify-content: flex-start; padding: 2px 8px; text-align: left; }
+  body.tel .actions .btn.primary { font-size: 16px; justify-content: center; }
+  body.tel .actions .btn .ico { width: 20px; height: 20px; }
+  body.tel .panel.open .scroll { right: var(--panW, 158px); bottom: 0; border-bottom: 0; border-right: 3px solid var(--gold); }
+  /* noms de Nord et de Sud à gauche de leurs cartes : la hauteur est comptée */
+  body.tel .zone-n { flex-direction: row; align-items: flex-start; gap: 8px; top: 6px; }
+  body.tel .zone-s { flex-direction: row; align-items: flex-end; justify-content: center; gap: 10px; }
+}
+
+/* fenêtres, pages, fin de donne et revue sur téléphone */
+body.tel .overlay { padding: 10px; }
+body.tel .sheet { padding: 16px 16px; border-radius: 18px; max-height: 96%; }
+body.tel .sheet h2 { font-size: 23px; }
+body.tel .sheet p { font-size: 18px; }
+body.tel .sheet .btns .btn { min-width: 130px; }
+body.tel .loupe-cards { flex-wrap: wrap; padding-top: 14px; }
+body.tel .page .inner { padding: 18px 14px 50px; }
+body.tel .page h1 { font-size: 29px; }
+body.tel .page h2 { font-size: 23px; }
+body.tel .page p, body.tel .page li { font-size: 18px; }
+body.tel .setting { flex-wrap: wrap; padding: 12px 14px; gap: 10px; }
+body.tel .setting .lbl { font-size: 19px; flex: 1 1 200px; }
+body.tel .seg button { font-size: 17px; padding: 10px 12px; min-width: 64px; }
+body.tel .home { padding: 12px; }
+body.tel .home .card-box { padding: 22px 18px; }
+body.tel .home h1 { font-size: 31px; }
+body.tel .end { padding: 6px; }
+body.tel .end .box { padding: 14px 12px; border-radius: 18px; }
+body.tel .end .res { font-size: 25px; }
+body.tel .end .score { font-size: 18px; }
+body.tel .end .quip { font-size: 17px; padding: 6px 10px 6px 6px; }
+body.tel .end .quip svg.av { width: 46px; height: 46px; }
+body.tel .end .btns .btn { font-size: 17px; }
+body.tel .end .btns .btn.primary { font-size: 21px; min-height: 58px; }
+body.tel .compass { gap: 5px; }
+body.tel .compass .h { font-size: 15px; padding: 6px 7px; line-height: 1.4; }
+body.tel .compass .h .nm { font-size: 14px; }
+body.tel .compass .h .pt { font-size: 13px; }
+body.tel .trick-list { font-size: 15px; }
+body.tel .an-list li { font-size: 18px; padding: 10px 12px; }
+body.tel .an-btns { grid-template-columns: 1fr; }
+body.tel .pf-left { width: 100%; }
+body.tel .pf-side { min-width: 0; }
+body.tel .pf-fx { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+body.tel .fiche-view .ttl { font-size: 18px; }
+body.tel .fiche-view .ttl small { font-size: 14px; }
+body.tel .fiche-view .bar .btn { min-height: 46px; padding: 4px 12px; font-size: 17px; }
+body.tel .fiche-view .pages { padding: 8px; }
+/* revue coup par coup : les quatre mains en petit autour du pli */
+body.tel .rv-hand { font-size: 15px; padding: 4px 8px 5px; min-width: 0; border-radius: 12px; line-height: 1.25; border-width: 2px; }
+body.tel .rv-hand .rv-who { font-size: 14px; gap: 5px; margin-bottom: 1px; }
+body.tel .rv-hand .rv-who .av { width: 24px; height: 24px; }
+body.tel .rv-hand .rv-who small { font-size: 12px; }
+body.tel .rv-hand .rv-suit { gap: 3px; }
+body.tel .rv-hand .rv-suit svg.su { width: 15px; height: 15px; }
+body.tel .rv-n { top: 6px; } body.tel .rv-s { bottom: 6px; } body.tel .rv-w { left: 6px; } body.tel .rv-e { right: 6px; }
+body.tel .rv-side .scroll { padding: 10px 12px; }
+body.tel .rv-top { font-size: 16px; margin-bottom: 4px; }
+body.tel .rv-exp { font-size: 17px; }
+body.tel .rv-exp .rv-play { font-size: 18px; }
+body.tel .rv-exp .why, body.tel .rv-exp .bad, body.tel .rv-exp .good { padding: 7px 10px; margin: 6px 0; }
+body.tel .rv-exp .rv-end { font-size: 17px; }
+body.tel .rv-ctrl { gap: 6px; padding: 7px 8px; }
+body.tel .rv-ctrl .btn { min-height: 46px; font-size: 15px; padding: 4px 6px; border-radius: 12px; }
+@media (orientation: portrait) {
+  body.tel .rv { grid-template-rows: minmax(0, 1fr) auto; }
+  body.tel .rv-side .scroll { max-height: 27vh; }
+}
+@media (orientation: landscape) {
+  body.tel .rv { grid-template-columns: minmax(0, 1fr) 250px; }
+  body.tel .rv-ctrl { grid-template-columns: 1fr 1fr; }
+}
