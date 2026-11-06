@@ -34,6 +34,8 @@ function natural(cards, advice) {
   return cards.slice().sort((a, b) => rankOf(a) - rankOf(b))[0];
 }
 function startState(g) {
+  // mission : la fin de donne de départ (plis déjà faits, pli en cours, mort étalé)
+  if (g.mission) return B.mission.startState(B.mission.byId(g.mission));
   const st = B.newPlay(g.hands, g.contract);
   st.auction = g.auction.slice();
   st.dealer = g.dealer;
@@ -42,6 +44,7 @@ function startState(g) {
 
 function reviewBids(g) {
   const out = [];
+  if (g.mission) return out;
   let nth = 0;
   g.auction.forEach((call, i) => {
     if ((g.dealer + i) % 4 !== 2) return;
@@ -56,13 +59,15 @@ function reviewBids(g) {
 async function reviewPlay(g, user, tick) {
   const st = startState(g);
   const seq = [];
+  let pre = st.trick.length;   // mission : cartes déjà posées au départ, qui ne se rejouent pas
   for (const t of g.play.tricks) {
     for (const x of t.cards) {
+      if (pre > 0) { pre--; continue; }
       const item = { seat: x.seat, card: x.card };
       if (user(x.seat) && B.legalCards(st, x.seat).length > 1) {
         const advice = B.chooseCard(B.cloneState(st), x.seat, { samples: 12 });
         item.advice = advice.card;
-        if (13 - st.tricks.length <= EXACT) {
+        if (st.hands[x.seat].length <= EXACT) {
           try {
             const { ev, top, best } = exactMoves(st, x.seat);
             const mine = ev.find(e => e.card === x.card).ns;
@@ -91,7 +96,7 @@ async function bestLine(g, tick) {
     const seat = st.turn;
     const r = B.chooseCard(B.cloneState(st), seat, { samples: 12 });
     let card = r.card, reason = r.reason;
-    if (13 - st.tricks.length <= EXACT && B.legalCards(st, seat).length > 1) {
+    if (st.hands[seat].length <= EXACT && B.legalCards(st, seat).length > 1) {
       try {
         const { best } = exactMoves(st, seat);
         if (!best.includes(card)) {
@@ -115,7 +120,7 @@ async function analyseDeal(g, opts) {
   const bids = reviewBids(g);
   if (!g.contract || !g.play) return { bids, seq: [], best: null, won: [0, 0] };
   const mine = g.play.tricks.reduce((n, t) => n + t.cards.filter(x => user(x.seat)).length, 0);
-  const total = mine + 52;
+  const total = mine + startState(g).hands.flat().length;
   let done = 0;
   const tick = () => { done++; if (opts.progress) opts.progress(done, total); };
   const seq = await reviewPlay(g, user, tick);

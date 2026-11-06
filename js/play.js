@@ -53,13 +53,13 @@ function playCard(st, seat, card) {
     st.won[sideOf(w.seat)]++;
     st.trick = [];
     st.leader = st.turn = w.seat;
-    if (st.tricks.length === 13) st.done = true;
+    if (st.tricks.length === 13 || st.hands.every(h => !h.length)) st.done = true;   // (mission : fin de donne plus courte)
     return { trickDone: true, winner: w.seat };
   }
   st.turn = (seat + 1) % 4;
   return { trickDone: false };
 }
-const dummyShown = st => st.tricks.length > 0 || st.trick.length > 0;
+const dummyShown = st => !!st.shown || st.tricks.length > 0 || st.trick.length > 0;   // shown : mission, mort déjà étalé
 const declTricks = st => st.won[sideOf(st.declarer)];
 
 /* ---------- Connaissances d'un joueur ---------- */
@@ -132,7 +132,7 @@ function chooseCard(st, seat, opts) {
 function heuristicCard(st, seat, ctrl, isDecl, leg) {
   if (!st.trick.length) {
     if (isDecl) return declarerLead(st, seat);
-    if (!st.tricks.length) return openingLead(st, seat);
+    if (!st.tricks.length && !st.shown) return openingLead(st, seat);
     return defenderLead(st, seat);
   }
   return follow(st, seat, ctrl, isDecl, leg);
@@ -583,7 +583,7 @@ function endgameCard(st, seat, ctrl, samples) {
     const hands = allVisible ? st.hands.map(h => h.slice()) : sampleHidden(st, ctrl);
     if (!hands) continue;
     const ev = B.dd.evalMoves(hands, st.trump, st.trick, seat, { maxNodes: 300000 });
-    for (const x of ev) tot.set(x.card, tot.get(x.card) + (side === 0 ? x.ns : (13 - st.tricks.length) - x.ns));
+    for (const x of ev) tot.set(x.card, tot.get(x.card) + (side === 0 ? x.ns : st.hands[seat].length - x.ns));
     n++;
   }
   if (!n) return null;
@@ -637,7 +637,7 @@ function ddMax(st) {
   return search(st.trick.length ? st.trick[0].seat : st.leader, st.trick.slice(), st.turn, -1, 99);
 }
 function claimCheck(st) {
-  const left = 13 - st.tricks.length;
+  const left = Math.max(...st.hands.map(h => h.length));
   const cards = st.hands.reduce((n, h) => n + h.length, 0);
   if (B.dd && st.trick.length === 0 && left <= 8) {
     try { const r = B.dd.solve(st.hands, st.trump, st.leader, { maxNodes: 2e6 }).ns; const mine = sideOf(st.declarer) === 0 ? r : left - r; return mine >= left; } catch (e) { /* trop long */ }

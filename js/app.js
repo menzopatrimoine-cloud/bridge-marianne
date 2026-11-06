@@ -152,12 +152,7 @@ function newDeal(sameHands) {
   }
   const info = B.boardInfo(board);
   // trois personnages différents : Est, Ouest et le partenaire Nord
-  let picks = sameHands && G.game && G.game.opp && G.game.nord != null ? [G.game.opp[0], G.game.opp[1], G.game.nord] : null;
-  if (!picks) {
-    const pool = B.PERSOS.map((_, i) => i);
-    for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
-    picks = pool.slice(0, 3);
-  }
+  const picks = sameHands && G.game && G.game.opp && G.game.nord != null ? [G.game.opp[0], G.game.opp[1], G.game.nord] : pickPersos();
   G.game = { board, dealer: info.dealer, vul: info.vul, hands, auction: [], phase: 'bidding', play: null, contract: null, undo: [], selCall: null, result: null, recorded: false, opp: [picks[0], picks[1]], nord: picks[2] };
   thinking = -1; holdTrick = false; bidLevel = null; selected = null; hintCard = null; lastPlayed = null;
   fly = null; dealAnim = true; dummyRevealKey = null; newBidIdx = -1; robotActed = true; shownWon = [0, 0];
@@ -172,6 +167,125 @@ function newDeal(sameHands) {
   }
   const tok = runToken;
   setTimeout(() => { if (tok !== runToken) return; dealing = false; step(); }, dealing ? 900 : 0);
+}
+function pickPersos() {
+  const pool = B.PERSOS.map((_, i) => i);
+  for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+  return pool.slice(0, 3);
+}
+
+/* ---------- Missions : des fins de donne à réussir, de plus en plus difficiles ---------- */
+const MP = () => G.missions = G.missions || { done: {}, fails: {} };
+const missionOf = g => g && g.mission ? B.mission.byId(g.mission) : null;
+const missionList = parcours => B.MISSIONS.filter(m => m.parcours === parcours);
+const PARCOURS = { decl: 'Faire les plis', def: 'Empêcher les plis' };
+const stars = n => `<span class="stars" aria-label="difficulté ${n} sur 5">${'★'.repeat(n)}<i>${'★'.repeat(5 - n)}</i></span>`;
+// une mission s'ouvre quand la précédente est réussie (ou ratée 3 fois : on n'est jamais bloquée)
+function missionOpen(m) {
+  const list = missionList(m.parcours), i = list.indexOf(m);
+  if (i <= 0) return true;
+  const prev = list[i - 1], mp = MP();
+  return !!mp.done[prev.id] || (mp.fails[prev.id] || 0) >= 3;
+}
+function nextMission(m) {
+  const list = missionList(m.parcours);
+  return list[list.indexOf(m) + 1] || missionList(m.parcours === 'decl' ? 'def' : 'decl').find(x => !MP().done[x.id] && missionOpen(x)) || null;
+}
+// plis faits par Nord-Sud depuis le début de la mission, et plis qu'il faut
+const missionTricks = g => g.play.won[0] - missionOf(g).deja[0];
+function startMission(id) {
+  const m = B.mission.byId(id);
+  if (!m) return;
+  cancelTimers();
+  closeModal();
+  panelOpen = false; oneRow = false;
+  const st = B.mission.startState(m);
+  const again = G.game && G.game.mission === id && G.game.opp && G.game.nord != null;
+  const picks = again ? [G.game.opp[0], G.game.opp[1], G.game.nord] : pickPersos();
+  G.game = { mission: id, board: m.titre, dealer: st.declarer, vul: '-', hands: st.hands.map(h => h.slice()), auction: [], phase: 'play', play: st,
+    contract: B.mission.contractOf(m), undo: [], selCall: null, result: null, recorded: false, opp: [picks[0], picks[1]], nord: picks[2] };
+  thinking = -1; holdTrick = false; bidLevel = null; selected = null; hintCard = null; lastPlayed = null;
+  fly = null; dealAnim = true; dummyRevealKey = id; newBidIdx = -1; robotActed = true; shownWon = st.won.slice();
+  screen = 'game';
+  save();
+  snd('shuffle');
+  render();
+  const n = missionList(m.parcours).indexOf(m) + 1;
+  modal(`<div class="mi-k">${PARCOURS[m.parcours]} · mission ${n} ${stars(m.niveau)}</div><h2>${m.titre}</h2>
+    <p>${rich(m.histoire)}</p><p class="mi-goal">${B.mission.objectif(m)}</p>
+    <p class="mi-note">${m.parcours === 'decl' ? `Vous jouez vos cartes et celles du mort (${nameOf(0)}, en haut).` : `Vous jouez vos cartes ; ${nameOf(0)}, en haut, est votre partenaire.`}
+    Les robots voient toutes les cartes et jouent parfaitement : seul le bon plan réussit. Le bouton « Conseil » donne un indice.</p>
+    <div class="btns"><button class="btn primary" data-m="go">C'est parti !</button></div>`, null, 'mission-intro');
+  step();
+}
+function missionSlipCheck(seat, card) {
+  // avant de jouer : cette carte rend-elle la mission impossible alors qu'elle était encore jouable ?
+  const g = G.game, p = g.play, m = missionOf(g);
+  if (!m || p.slip || !userControls(seat) || B.legalCards(p, seat).length < 2) return false;
+  try {
+    const { ev, top } = B.mission.exact(p, seat);
+    const need = B.mission.goalOf(m) - missionTricks(g);
+    const mine = ev.find(x => x.card === card);
+    return top >= need && mine && mine.ns < need;
+  } catch (e) { return false; }
+}
+function renderMissions() {
+  const mp = MP();
+  const done = B.MISSIONS.filter(m => mp.done[m.id]).length;
+  const row = (m, i) => {
+    const open = missionOpen(m), ok = mp.done[m.id];
+    return `<div class="mi-row ${open ? '' : 'locked'} ${ok ? 'ok' : ''}">
+      <div class="mi-n">${ok ? '✓' : i + 1}</div>
+      <div class="mi-t"><b>${m.titre}</b>${stars(m.niveau)}<small>${ok ? 'Réussie' : open ? (mp.fails[m.id] ? `À réussir · ${plural(mp.fails[m.id], 'essai')}` : 'À jouer') : 'Réussissez d\'abord la mission précédente'}</small></div>
+      ${open ? `<button class="btn ${ok ? '' : 'primary'}" data-act="mission:${m.id}">${ok ? 'Rejouer' : 'Jouer'}</button>` : '<span class="mi-lock">🔒</span>'}</div>`;
+  };
+  const block = k => `<h2>${PARCOURS[k]} <small>${k === 'decl' ? 'vous êtes déclarant : faites vos plis' : 'vous êtes en défense : faites chuter le contrat'}</small></h2>
+    <div class="mi-list">${missionList(k).map(row).join('')}</div>`;
+  $app.innerHTML = `<div class="page"><div class="inner">
+    <button class="btn back" data-act="go:home">← Accueil</button>
+    <h1>Les missions</h1>
+    <p>Chaque mission est une fin de donne avec un but : faire assez de plis, ou empêcher l'adversaire de faire les siens. Chaque mission reprend une leçon de la fiche « Jeu de la carte », et elles deviennent de plus en plus difficiles. <b>${done} sur ${B.MISSIONS.length}</b> réussies.</p>
+    ${block('decl')}${block('def')}
+  </div></div>`;
+}
+function missionEndHTML() {
+  const g = G.game, r = g.result, m = missionOf(g), p = g.play;
+  const goal = B.mission.goalOf(m), made = missionTricks(g), left = B.mission.startState(m).hands[B.mission.startState(m).turn].length;
+  const pa = perso(0), op = perso(m.parcours === 'decl' ? 1 : g.contract.declarer);
+  const line = (q, txt, who) => `<div class="quip">${B.avatarSVG(q)}<div><b>${q.name}</b> <small>${who}</small><br>« ${txt} »</div></div>`;
+  const nx = nextMission(m), mp = MP();
+  ensureAnalysis();
+  const h = g.hands;
+  const hbox = (s, cls2) => `<div class="h ${cls2}"><div class="nm">${seatName(s)}</div>${handText(h[s])}</div>`;
+  return `<div class="end"><div class="box">
+    <div class="res ${r.ok ? 'ok' : 'ko'}">${r.ok ? 'Mission réussie !' : 'Mission ratée'}</div>
+    <div class="score">Nord-Sud a fait <b>${plural(made, 'pli')}</b> sur les ${left} : il en fallait <b>${goal}</b>.${p.claimed ? ` (dont ${p.claimed} réclamés)` : ''}</div>
+    <div class="quips">${line(pa, r.ok ? pa.avecGagne : pa.avecPerd, 'votre partenaire')}${line(op, r.ok ? op.perd : op.gagne, 'adversaire')}</div>
+    <div class="mi-lesson"><b>La leçon :</b> ${rich(m.lecon)}${ficheBtn('09')}</div>
+    <div class="an-status">${anStatusHTML()}</div>
+    <div class="btns">
+      ${r.ok && nx ? `<button class="btn primary" data-act="mission:${nx.id}">Mission suivante : ${nx.titre}</button>` : ''}
+      ${!r.ok ? '<button class="btn primary" data-act="replay">↻ Recommencer la mission</button>' : '<button class="btn" data-act="replay">↻ Rejouer la mission</button>'}
+      ${!r.ok && nx && (mp.fails[m.id] || 0) >= 3 ? `<button class="btn" data-act="mission:${nx.id}">Passer à la suivante</button>` : ''}
+      <button class="btn" data-act="go:missions">Toutes les missions</button>
+      <button class="btn" data-act="undo" ${g.undo.length ? '' : 'disabled'}>${ICONS.undo}Annuler la dernière carte</button></div>
+    <details><summary>Les mains du début de la mission</summary><div class="compass">${hbox(0, 'hn')}${hbox(3, 'hw')}<div class="mid">${m.titre}</div>${hbox(1, 'he')}${hbox(2, 'hs')}</div></details>
+  </div></div>`;
+}
+function finishMission() {
+  const g = G.game, p = g.play, m = missionOf(g);
+  const ok = B.mission.won(m, p);
+  g.result = { mission: true, ok, tricks: p.won[B.sideOf(g.contract.declarer)], made: ok === (B.sideOf(g.contract.declarer) === 0), ns: ok ? 1 : -1 };
+  g.phase = 'end';
+  g.recorded = true;
+  const mp = MP();
+  if (ok) mp.done[m.id] = true;
+  else mp.fails[m.id] = (mp.fails[m.id] || 0) + 1;
+  save();
+  render();
+  snd(ok ? 'success' : 'fail');
+  say(ok ? 'Mission réussie !' : 'Mission ratée.');
+  if (ok && anim()) confetti();
 }
 function userControls(seat) {
   const g = G.game;
@@ -237,7 +351,7 @@ function step() {
       if (tok !== runToken) return;
       robotPending = false;
       if (p.turn !== seat || p.done || holdTrick) { step(); return; }
-      const r = B.chooseCard(p, seat);
+      const r = g.mission ? B.mission.perfectCard(p, seat) : B.chooseCard(p, seat);
       doPlay(seat, r.card);
     }, p.tricks.length === 0 && !p.trick.length ? delay('lead') : delay('card'));
   }
@@ -245,7 +359,12 @@ function step() {
 function doPlay(seat, card) {
   const g = G.game, p = g.play, tok = runToken;
   fly = anim() ? flyOrigin(seat, card) : null;
+  const slip = g.mission && missionSlipCheck(seat, card);
   const res = B.playCard(p, seat, card);
+  if (slip) {
+    p.slip = true;
+    setTimeout(() => toast('Aïe : après cette carte, la mission ne peut plus être réussie.<br>Touchez « Annuler » pour rejouer ce coup.', 5200), 300);
+  }
   snd('card');
   robotActed = !userControls(seat);
   lastPlayed = card;
@@ -297,6 +416,7 @@ function finishAuction() {
   step();
 }
 function finishPlay() {
+  if (G.game.mission) { finishMission(); return; }
   const g = G.game, p = g.play, ct = g.contract;
   const tricks = p.won[B.sideOf(ct.declarer)];
   const sc = B.score(ct, tricks, g.vul);
@@ -450,6 +570,7 @@ function hint() {
   if (g.phase === 'play') {
     const p = g.play;
     if (holdTrick || !userControls(p.turn)) { toast('Attendez votre tour pour demander un conseil.'); return; }
+    if (g.mission) { missionHint(); return; }
     const r = B.chooseCard(p, p.turn, { samples: 16 });
     hintCard = r.card;
     if (G.settings.doubleTap) selected = r.card;
@@ -459,6 +580,21 @@ function hint() {
       <div class="btns"><button class="btn primary" data-m="play">Jouer cette carte</button><button class="btn" data-m="no">Fermer</button></div>`,
     v => { if (v === 'play') { pushUndo(); doPlay(p.turn, r.card); } });
   }
+}
+function missionHint() {
+  const g = G.game, p = g.play, m = missionOf(g), seat = p.turn;
+  const r = B.mission.perfectCard(p, seat);
+  const { top } = B.mission.exact(p, seat);
+  const need = B.mission.goalOf(m) - missionTricks(g);
+  hintCard = r.card;
+  if (G.settings.doubleTap) selected = r.card;
+  render();
+  modal(`<h2>Conseil : jouez ${cardTxtHTML(r.card)}${seat === 0 ? ' (du mort)' : ''}</h2>
+    ${top >= need ? `<p>${rich(m.astuce)}</p><p style="color:var(--muted)">Avec cette carte, la mission peut encore être réussie.</p>`
+      : '<p>Après les cartes déjà jouées, la mission ne peut plus être réussie : touchez « Annuler » pour revenir en arrière, ou recommencez la mission. Cette carte limite les dégâts.</p>'}
+    ${ficheBtn('09')}
+    <div class="btns"><button class="btn primary" data-m="play">Jouer cette carte</button><button class="btn" data-m="no">Fermer</button></div>`,
+  v => { if (v === 'play') { pushUndo(); doPlay(seat, r.card); } });
 }
 const cardTxtHTML = c => `<b>${B.RANK_NAME[B.rankOf(c)]}</b> ${su(B.suitOf(c))}`;
 function lastTrick() {
@@ -478,7 +614,7 @@ function claim() {
   if (!p || g.phase !== 'play') return;
   if (B.sideOf(p.declarer) !== 0) { toast('Seul le camp du déclarant peut réclamer.'); return; }
   if (p.trick.length || !userControls(p.turn) || holdTrick) { toast('Vous pouvez réclamer quand c\'est à vous de commencer un pli.'); return; }
-  const left = 13 - p.tricks.length;
+  const left = Math.max(...p.hands.map(h => h.length));
   modal(`<h2>Réclamer les ${left} plis restants ?</h2><p>Si toutes vos cartes sont maîtresses, la donne se termine tout de suite.</p>
     <div class="btns"><button class="btn primary" data-m="yes">Réclamer</button><button class="btn" data-m="no">Continuer à jouer</button></div>`, v => {
     if (v !== 'yes') return;
@@ -495,7 +631,8 @@ function menu() {
   const inGame = screen === 'game' && G.game;
   modal(`<h2>Menu</h2><div class="menu-list">
     <button class="btn primary" data-m="new">Nouvelle donne</button>
-    ${inGame ? '<button class="btn" data-m="replay">Recommencer cette donne</button>' : ''}
+    ${inGame ? `<button class="btn" data-m="replay">${G.game.mission ? 'Recommencer la mission' : 'Recommencer cette donne'}</button>` : ''}
+    <button class="btn" data-m="missions">Les missions</button>
     <button class="btn" data-m="stats">Mes résultats</button>
     <button class="btn" data-m="help">Comment jouer</button>
     <button class="btn" data-m="settings">Réglages</button>
@@ -508,6 +645,7 @@ function menu() {
   });
 }
 function confirmReplay() {
+  if (G.game && G.game.mission) { startMission(G.game.mission); return; }
   modal(`<h2>Recommencer cette donne ?</h2><p>Les mêmes cartes seront redistribuées et les enchères reprendront du début.</p>
     <div class="btns"><button class="btn primary" data-m="yes">Recommencer</button><button class="btn" data-m="no">Annuler</button></div>`, v => { if (v === 'yes') newDeal(true); });
 }
@@ -527,6 +665,7 @@ function render() {
   if (screen === 'settings') return renderSettings();
   if (screen === 'stats') return renderStats();
   if (screen === 'help') return renderHelp();
+  if (screen === 'missions') return renderMissions();
   if (screen === 'analyse' && G.game) return renderAnalysis();
   if (screen === 'revue' && G.game && AN.res && AN.res.best !== undefined) return renderReview();
   if (!G.game) { screen = 'home'; return renderHome(); }
@@ -541,8 +680,9 @@ function renderHome() {
     <h1>Le Bridge de Marianne</h1>
     <div class="sub">Jouez contre trois robots qui annoncent comme dans votre cours.</div>
     <div class="menu-list">
-      ${resume ? `<button class="btn primary" data-act="resume">Reprendre la donne n° ${g.board}</button>` : ''}
+      ${resume ? `<button class="btn primary" data-act="resume">${g.mission ? 'Reprendre la mission : ' + g.board : 'Reprendre la donne n° ' + g.board}</button>` : ''}
       <button class="btn ${resume ? '' : 'primary'}" data-act="new">Nouvelle donne</button>
+      <button class="btn gold" data-act="go:missions">★ Les missions <small>${B.MISSIONS.filter(m => MP().done[m.id]).length} / ${B.MISSIONS.length}</small></button>
       <button class="btn" data-act="go:stats">Mes résultats</button>
       <button class="btn" data-act="go:help">Comment jouer</button>
       <button class="btn" data-act="go:settings">Réglages</button>
@@ -695,24 +835,29 @@ function panelHTML(status) {
   const g = G.game;
   const p = g.play;
   const vulNS = B.isVul(g.vul, 0), vulEW = B.isVul(g.vul, 1);
+  const m = missionOf(g);
   let html = `<div class="scroll">
-    <div class="topline"><span class="boardno">Donne n° ${g.board}</span><button class="menu-btn" data-act="menu"><span class="bars"></span>Menu</button><button class="btn sheet-close" data-act="details">Fermer ✕</button></div>
-    <div class="info">Donneur : <b>${seatName(g.dealer)}</b><br>
+    <div class="topline"><span class="boardno">${m ? 'Mission' : 'Donne n° ' + g.board}</span><button class="menu-btn" data-act="menu"><span class="bars"></span>Menu</button><button class="btn sheet-close" data-act="details">Fermer ✕</button></div>
+    ${m ? `<div class="mission-box"><div class="mi-k">${PARCOURS[m.parcours]} ${stars(m.niveau)}</div><div class="mi-title">${m.titre}</div><p>${rich(m.histoire)}</p></div>`
+      : `<div class="info">Donneur : <b>${seatName(g.dealer)}</b><br>
       Nord-Sud <span class="vul ${vulNS ? 'v' : 'nv'}">${vulNS ? 'vulnérables' : 'non vulnérables'}</span><br>
-      Est-Ouest <span class="vul ${vulEW ? 'v' : 'nv'}">${vulEW ? 'vulnérables' : 'non vulnérables'}</span></div>`;
+      Est-Ouest <span class="vul ${vulEW ? 'v' : 'nv'}">${vulEW ? 'vulnérables' : 'non vulnérables'}</span></div>`}`;
   if (g.contract && g.phase !== 'bidding') {
     const ct = g.contract;
     const side = B.sideOf(ct.declarer);
     html += `<div class="contract"><div class="big">${contractHTML(ct)} <span style="font-size:20px;color:var(--muted)">par ${nameOf(ct.declarer)}</span></div>
       <div class="tricks"><span>Nord-Sud<b class="${bumpCls(0)}">${p.won[0]}</b></span><span>Est-Ouest<b class="${bumpCls(1)}">${p.won[1]}</b></span></div>
-      <div class="goal">Il faut <b>${ct.level + 6} plis</b> au camp ${side === 0 ? 'Nord-Sud' : 'Est-Ouest'} (les défenseurs en veulent ${8 - ct.level}).</div></div>`;
+      ${m ? `<div class="goal mi-progress">Objectif : <b>${B.mission.goalOf(m)} pli${B.mission.goalOf(m) > 1 ? 's' : ''}</b> pour Nord-Sud dans cette fin de donne. Déjà faits : <b>${missionTricks(g)}</b>.</div>`
+        : `<div class="goal">Il faut <b>${ct.level + 6} plis</b> au camp ${side === 0 ? 'Nord-Sud' : 'Est-Ouest'} (les défenseurs en veulent ${8 - ct.level}).</div>`}</div>`;
   }
-  html += auctionHTML() + explainHTML();
+  if (m) html += `<div class="explain"><div class="t">${ICONS.hint} Besoin d'aide ?</div><div class="txt">Le bouton « Conseil » donne un indice et la bonne carte. Si une carte rend la mission impossible, l'appli vous prévient : « Annuler » permet de rejouer le coup.</div></div>`;
+  else html += auctionHTML() + explainHTML();
   html += '</div>';
   // téléphone : une seule barre avec le message du coup, le contrat et les plis
   if (tel()) {
     const ct = g.contract;
-    const sum = ct && g.phase !== 'bidding' ? `<div class="sum">${contractHTML(ct)} par ${nameOf(ct.declarer)} · Nord-Sud <b>${p.won[0]}</b> · Est-Ouest <b>${p.won[1]}</b></div>`
+    const sum = m ? `<div class="sum">${contractHTML(ct)} par ${nameOf(ct.declarer)} · objectif <b>${missionTricks(g)} / ${B.mission.goalOf(m)}</b> plis</div>`
+      : ct && g.phase !== 'bidding' ? `<div class="sum">${contractHTML(ct)} par ${nameOf(ct.declarer)} · Nord-Sud <b>${p.won[0]}</b> · Est-Ouest <b>${p.won[1]}</b></div>`
       : `<div class="sum">Donne n° ${g.board} · Donneur : <b>${seatName(g.dealer)}</b></div>`;
     html += `<div class="bar ${status ? 'two' : ''}">${status || sum}<button class="menu-btn" data-act="menu"><span class="bars"></span>Menu</button>${status ? sum : ''}</div>`;
   }
@@ -773,7 +918,7 @@ function actionsHTML() {
   const p = g.play;
   const canUndo = g.undo.length > 0;
   // téléphone : les enchères et leurs explications s'ouvrent par-dessus le tapis
-  const more = tel() ? `<button class="btn ${panelOpen ? 'on' : ''}" data-act="details">${ICONS.list}Enchères</button>` : '';
+  const more = tel() ? `<button class="btn ${panelOpen ? 'on' : ''}" data-act="details">${ICONS.list}${g.mission ? 'Mission' : 'Enchères'}</button>` : '';
   if (g.phase === 'bidding') return `<button class="btn gold" data-act="hint">${ICONS.hint}Conseil</button><button class="btn" data-act="undo" ${canUndo ? '' : 'disabled'}>${ICONS.undo}Annuler</button>${more}`;
   if (g.phase === 'play') {
     const canClaim = B.sideOf(p.declarer) === 0;
@@ -781,10 +926,12 @@ function actionsHTML() {
       <button class="btn" data-act="last" ${p.tricks.length ? '' : 'disabled'}>${ICONS.last}Dernier pli</button>
       <button class="btn" data-act="claim" ${canClaim ? '' : 'disabled'}>${ICONS.claim}Réclamer</button>${more}`;
   }
+  if (g.mission) return `<button class="btn primary" data-act="go:missions" style="grid-column:1/-1">Les missions</button>${more}`;
   return `<button class="btn primary" data-act="new" style="grid-column:1/-1">Donne suivante</button>${more}`;
 }
 
 function endScreenHTML() {
+  if (G.game.mission) return missionEndHTML();
   const g = G.game, r = g.result, ct = g.contract;
   let res, cls;
   if (r.passed) { res = 'Donne passée : personne n\'a ouvert.'; cls = ''; }
@@ -1102,6 +1249,13 @@ function renderHelp() {
       <li>Quand votre camp joue le contrat, <b>vous jouez aussi les cartes du mort</b> (votre partenaire, en haut). Touchez une couleur du mort : ses cartes s'affichent en grand pour bien choisir.</li>
       <li>Quand les adversaires jouent le contrat, le mort est étalé sur le côté après l'entame.</li>
     </ul>
+    <h2>Les missions</h2>
+    <ul>
+      <li>Depuis l'accueil, touchez <b>« ★ Les missions »</b> : ce sont des fins de donne avec un but, comme dans un jeu.</li>
+      <li><b>Faire les plis</b> : vous êtes déclarant, il faut faire assez de plis. <b>Empêcher les plis</b> : vous êtes en défense, il faut faire chuter le contrat.</li>
+      <li>Chaque mission reprend une leçon de la fiche « Jeu de la carte ». Elles deviennent de plus en plus difficiles : une mission s'ouvre quand la précédente est réussie (ou après 3 essais).</li>
+      <li>Les robots voient toutes les cartes et jouent parfaitement : seul le bon plan réussit. Si une carte rend la mission impossible, l'appli vous prévient tout de suite : « Annuler » permet de rejouer le coup.</li>
+    </ul>
     <h2>Les boutons</h2>
     <ul>
       <li><b>Conseil</b> : l'enchère ou la carte que le cours recommande, avec la raison.</li>
@@ -1265,6 +1419,9 @@ let AN = { sig: null, res: null, pct: 0 };
 let review = { mode: 'mine', step: 0 };
 const dealSig = g => JSON.stringify([g.board, g.hands[2], g.auction, g.play ? g.play.tricks.map(t => t.cards.map(x => x.card)) : 0]);
 const userNS = g => !!g.contract && B.sideOf(g.contract.declarer) === 0;
+// position de départ (mission : fin de donne avec plis déjà faits) et cartes déjà posées dans le 1er pli
+const startOf = g => g.mission ? B.mission.startState(missionOf(g)) : B.newPlay(g.hands, g.contract);
+const preOf = g => g.mission ? startOf(g).trick.length : 0;
 // lance l'analyse de la donne terminée (une seule fois par donne), un peu après la fin pour laisser la fête se jouer
 function ensureAnalysis(delay) {
   const g = G.game;
@@ -1302,7 +1459,8 @@ function anStatusHTML() {
 }
 function renderAnalysis() {
   const g = G.game, a = AN.res;
-  const head = `<button class="btn back" data-act="resume">← Retour à la donne</button><h1>Analyse de la donne n° ${g.board}</h1>`;
+  const m = missionOf(g);
+  const head = `<button class="btn back" data-act="resume">← Retour ${m ? 'à la mission' : 'à la donne'}</button><h1>${m ? 'Analyse de la mission : ' + m.titre : 'Analyse de la donne n° ' + g.board}</h1>`;
   if (!a) {
     $app.innerHTML = `<div class="page"><div class="inner analyse">${head}<div class="an-wait big">L'ordinateur analyse votre donne…<div class="an-bar"><b style="width:${AN.pct}%"></b></div></div></div></div>`;
     return;
@@ -1316,7 +1474,7 @@ function renderAnalysis() {
     ${b.sure && b.m.fiche ? ficheBtn(b.m.fiche) : ''}</li>`));
   a.seq.forEach((x, i) => {
     if (!x.fix) return;
-    const k = Math.floor(i / 4) + 1;
+    const k = Math.floor((i + preOf(g)) / 4) + 1;
     items.push(`<li><div class="an-k">Jeu de la carte · pli ${k}</div>
       Vous avez joué ${cardTxtHTML(x.card)}${x.seat === 0 ? ' (de ' + nameOf(0) + ')' : ''} ; ${x.fix.exact ? 'il fallait jouer' : 'le cours conseillait plutôt'} ${cardTxtHTML(x.fix.card)}.
       ${x.fix.reason ? `<div class="an-why">${rich(x.fix.reason)}</div>` : ''}
@@ -1332,17 +1490,19 @@ function renderAnalysis() {
       : `Vous avez fait <b>au moins aussi bien</b> que la meilleure façon de jouer trouvée par l'ordinateur (${plural(nsBest, 'pli')} pour Nord-Sud). Bravo !`;
   }
   $app.innerHTML = `<div class="page"><div class="inner analyse">${head}
-    <div class="an-res">${ct ? `${contractHTML(ct)} joué par ${nameOf(ct.declarer)} : ${plural(r.tricks, 'pli')}${r.made ? ', contrat réussi' : ', contrat chuté'}.` : 'Donne passée.'}</div>
-    ${auctionGridHTML(g, a.bids.map(b => b.i))}
+    <div class="an-res">${m ? `${r.ok ? 'Mission réussie' : 'Mission ratée'} : Nord-Sud a fait ${plural(missionTricks(g), 'pli')}, il en fallait ${B.mission.goalOf(m)}.`
+      : ct ? `${contractHTML(ct)} joué par ${nameOf(ct.declarer)} : ${plural(r.tricks, 'pli')}${r.made ? ', contrat réussi' : ', contrat chuté'}.` : 'Donne passée.'}</div>
+    ${m ? `<div class="mi-lesson"><b>La leçon :</b> ${rich(m.lecon)}</div>` : auctionGridHTML(g, a.bids.map(b => b.i))}
     <h2>Ce qui n'allait pas</h2>
-    ${items.length ? `<ol class="an-list">${items.join('')}</ol>` : '<p class="an-ok">Rien à redire : vos enchères et vos cartes suivent le cours. Bravo !</p>'}
+    ${items.length ? `<ol class="an-list">${items.join('')}</ol>` : `<p class="an-ok">${m ? 'Rien à redire : vous avez joué les bonnes cartes. Bravo !' : 'Rien à redire : vos enchères et vos cartes suivent le cours. Bravo !'}</p>`}
     ${a.best ? `<h2>Pour bien comprendre</h2><p>${compare}</p>
     <div class="an-btns">
       <button class="btn primary" data-act="revue:mine">Revoir tous les coups de la donne</button>
       <button class="btn gold" data-act="revue:best">★ Voir la meilleure façon de jouer</button>
     </div>` : ''}
-    <div class="an-btns"><button class="btn green" data-act="replay">↻ Rejouer cette donne</button><button class="btn" data-act="new">Donne suivante</button></div>
-    <p class="an-note">Pour les 8 derniers plis, l'ordinateur calcule exactement en voyant toutes les cartes. Avant, il suit les conseils du cours, comme le bouton « Conseil ».</p>
+    <div class="an-btns">${m ? '<button class="btn green" data-act="replay">↻ Recommencer la mission</button><button class="btn" data-act="go:missions">Toutes les missions</button>'
+      : '<button class="btn green" data-act="replay">↻ Rejouer cette donne</button><button class="btn" data-act="new">Donne suivante</button>'}</div>
+    <p class="an-note">${m ? 'Dans les missions, l\'ordinateur calcule exactement chaque coup en voyant toutes les cartes.' : 'Pour les 8 derniers plis, l\'ordinateur calcule exactement en voyant toutes les cartes. Avant, il suit les conseils du cours, comme le bouton « Conseil ».'}</p>
   </div></div>`;
 }
 function auctionGridHTML(g, bad) {
@@ -1360,7 +1520,7 @@ function reviewMove(how) {
   let p = review.step;
   if (how === 'prev') p--;
   else if (how === 'next') p++;
-  else if (how === 'trick') p = Math.floor(p / 4) * 4 + 4;
+  else if (how === 'trick') { const o = preOf(G.game); p = Math.floor((p + o) / 4) * 4 + 4 - o; }
   else if (how === 'fix') { const i = seq.findIndex((x, j) => j >= p && x.fix); p = i >= 0 ? i + 1 : p; }
   else if (how === 'start') p = 0;
   review.step = Math.max(0, Math.min(n, p));
@@ -1370,7 +1530,7 @@ function reviewMove(how) {
 function renderReview() {
   const g = G.game, a = AN.res, best = review.mode === 'best';
   const seq = reviewSeq(), n = seq.length, p = Math.max(0, Math.min(n, review.step));
-  const st = B.newPlay(g.hands, g.contract);
+  const st = startOf(g);
   for (let i = 0; i < p; i++) B.playCard(st, seq[i].seat, seq[i].card);
   let shown = st.trick, winner = -1;
   if (!shown.length && st.tricks.length && p > 0) { const t = st.tricks[st.tricks.length - 1]; shown = t.cards; winner = t.winner; }
@@ -1399,13 +1559,15 @@ function renderReview() {
   if (p === n && n) {
     const ct = g.contract, ns = best ? a.best.won[0] : a.won[0];
     const declT = B.sideOf(ct.declarer) === 0 ? ns : 13 - ns, ok = declT >= ct.level + 6;
-    exp += `<p class="rv-end">Fin : Nord-Sud a fait <b>${plural(ns, 'pli')}</b>${!best && n < 52 ? ' (la fin a été réclamée)' : ''}. Le contrat de ${nameOf(ct.declarer)} est <b>${ok ? 'réussi' : 'chuté'}</b>.</p>`;
+    const m = missionOf(g), claimed = !best && n < startOf(g).hands.flat().length ? ' (la fin a été réclamée)' : '';
+    exp += m ? `<p class="rv-end">Fin : Nord-Sud a fait <b>${plural(ns - m.deja[0], 'pli')}</b> dans cette fin de donne${claimed}, il en fallait ${B.mission.goalOf(m)} : mission <b>${ns - m.deja[0] >= B.mission.goalOf(m) ? 'réussie' : 'ratée'}</b>.</p>`
+      : `<p class="rv-end">Fin : Nord-Sud a fait <b>${plural(ns, 'pli')}</b>${claimed}. Le contrat de ${nameOf(ct.declarer)} est <b>${ok ? 'réussi' : 'chuté'}</b>.</p>`;
   }
   const nextFix = !best ? seq.findIndex((x, j) => j >= p && x.fix) : -1;
   $app.innerHTML = `<div class="rv">
     <div class="rv-table" id="rvt">${hand(0)}${hand(3)}${hand(1)}${hand(2)}${trick}</div>
     <aside class="rv-side"><div class="scroll">
-      <div class="rv-top"><b>${best ? '★ Meilleure façon de jouer' : 'Votre partie'}</b><span class="rv-step">Carte ${p} sur ${n} · pli ${Math.min(13, Math.floor(Math.max(0, p - 1) / 4) + 1)}</span></div>
+      <div class="rv-top"><b>${best ? '★ Meilleure façon de jouer' : 'Votre partie'}</b><span class="rv-step">Carte ${p} sur ${n} · pli ${Math.min(13, Math.floor(Math.max(0, p - 1 + preOf(g)) / 4) + 1)}</span></div>
       <div class="rv-exp">${exp}</div></div>
       <div class="rv-ctrl">
         <button class="btn" data-act="rv:prev" ${p === 0 ? 'disabled' : ''}>‹ Précédent</button>
@@ -1419,7 +1581,10 @@ function renderReview() {
   const t = document.getElementById('rvt');
   const hn = t.querySelector('.rv-n'), hs = t.querySelector('.rv-s');
   const free = hs.offsetTop - (hn.offsetTop + hn.offsetHeight) - 16;
-  t.style.setProperty('--cwT', Math.max(40, Math.min(78, free / (1.42 * 2.1))) + 'px');
+  // en largeur aussi : le pli tient entre les mains d'Ouest et d'Est (téléphone)
+  const hw = t.querySelector('.rv-w'), he = t.querySelector('.rv-e');
+  const wide = (t.clientWidth - 2 * Math.max(hw.offsetWidth, he.offsetWidth) - 28) / 3.3;
+  t.style.setProperty('--cwT', Math.max(34, Math.min(78, free / (1.42 * 2.1), wide)) + 'px');
 }
 
 /* ---------- Gestion des touchers ---------- */
@@ -1458,6 +1623,7 @@ $app.addEventListener('click', e => {
   else if (k === 'call') submitCall(v);
   else if (k === 'sel') { G.game.selCall = +v; save(); render(); }
   else if (k === 'details') { panelOpen = !panelOpen; render(); }
+  else if (k === 'mission') startMission(v);
   else if (k === 'set') {
     const val = w === 'true' ? true : w === 'false' ? false : w;
     G.settings[v] = val;
