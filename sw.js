@@ -1,8 +1,8 @@
 /* Service worker : l'application fonctionne sans internet une fois installée */
-const CACHE = 'bridge-marianne-v7';
+const CACHE = 'bridge-marianne-v8';
 const FILES = [
-  './', './index.html', './manifest.webmanifest', './css/style.css?v=7',
-  './js/core.js?v=7', './js/bidding.js?v=7', './js/dd.js?v=7', './js/play.js?v=7', './js/sound.js?v=7', './js/persos.js?v=7', './js/analyse.js?v=7', './js/missions.js?v=7', './js/app.js?v=7',
+  './', './index.html', './manifest.webmanifest', './css/style.css?v=8',
+  './js/core.js?v=8', './js/bidding.js?v=8', './js/dd.js?v=8', './js/play.js?v=8', './js/sound.js?v=8', './js/persos.js?v=8', './js/analyse.js?v=8', './js/missions.js?v=8', './js/app.js?v=8',
   './fonts/AHN-500.ttf', './fonts/AHN-700.ttf', './fonts/AHN-800.ttf',
   './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png',
   // les fiches du cours (images), pour les ouvrir sans internet

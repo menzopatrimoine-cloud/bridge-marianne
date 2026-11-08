@@ -229,6 +229,15 @@ function missionSlipCheck(seat, card) {
     return top >= need && mine && mine.ns < need;
   } catch (e) { return false; }
 }
+const ficheListHTML = () => `<div class="fiche-list">${Object.keys(B.FICHES).sort().map(k => `<button class="btn" data-fiche="${k}">${ICONS.book}<span>Fiche ${k} : ${rich(B.FICHES[k])}</span></button>`).join('')}</div>`;
+function renderFiches() {
+  $app.innerHTML = `<div class="page"><div class="inner">
+    <button class="btn back" data-act="${G.game && G.game.phase !== 'end' ? 'resume' : 'go:home'}">← Retour</button>
+    <h1>Les fiches du cours</h1>
+    <p>Toutes les fiches d'apprentissage, en gros caractères. Touchez une fiche pour l'ouvrir en grand.</p>
+    ${ficheListHTML()}
+  </div></div>`;
+}
 function renderMissions() {
   const mp = MP();
   const done = B.MISSIONS.filter(m => mp.done[m.id]).length;
@@ -618,6 +627,7 @@ function menu() {
     <button class="btn primary" data-m="new">Nouvelle donne</button>
     ${inGame ? `<button class="btn" data-m="replay">${G.game.mission ? 'Recommencer la mission' : 'Recommencer cette donne'}</button>` : ''}
     <button class="btn" data-m="missions">Les missions</button>
+    <button class="btn" data-m="fiches">Les fiches du cours</button>
     <button class="btn" data-m="stats">Mes résultats</button>
     <button class="btn" data-m="help">Comment jouer</button>
     <button class="btn" data-m="settings">Réglages</button>
@@ -651,6 +661,7 @@ function render() {
   if (screen === 'stats') return renderStats();
   if (screen === 'help') return renderHelp();
   if (screen === 'missions') return renderMissions();
+  if (screen === 'fiches') return renderFiches();
   if (screen === 'analyse' && G.game) return renderAnalysis();
   if (screen === 'revue' && G.game && AN.res && AN.res.best !== undefined) return renderReview();
   if (!G.game) { screen = 'home'; return renderHome(); }
@@ -668,6 +679,7 @@ function renderHome() {
       ${resume ? `<button class="btn primary" data-act="resume">${g.mission ? 'Reprendre la mission : ' + g.board : 'Reprendre la donne n° ' + g.board}</button>` : ''}
       <button class="btn ${resume ? '' : 'primary'}" data-act="new">Nouvelle donne</button>
       <button class="btn gold" data-act="go:missions">★ Les missions <small>${B.MISSIONS.filter(m => MP().done[m.id]).length} / ${B.MISSIONS.length}</small></button>
+      <button class="btn" data-act="go:fiches">Les fiches du cours</button>
       <button class="btn" data-act="go:stats">Mes résultats</button>
       <button class="btn" data-act="go:help">Comment jouer</button>
       <button class="btn" data-act="go:settings">Réglages</button>
@@ -1267,7 +1279,7 @@ function renderHelp() {
     </div>
     <h2>Les fiches du cours</h2>
     <p>Touchez une fiche pour l'ouvrir.</p>
-    <div class="fiche-list">${Object.keys(B.FICHES).sort().map(k => [k, B.FICHES[k]]).map(([k, v]) => `<button class="btn" data-fiche="${k}">${ICONS.book}<span>Fiche ${k} : ${rich(v)}</span></button>`).join('')}</div>
+    ${ficheListHTML()}
   </div></div>`;
 }
 
