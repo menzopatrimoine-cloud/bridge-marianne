@@ -322,13 +322,6 @@ svg.av, img.av { clip-path: circle(50%); flex: none; display: block; object-fit:
   font-size: 19px; text-align: left; margin: 10px 0; }
 .end .quip svg.av { width: 58px; height: 58px; }
 
-/* ---------- Loupe sur une couleur du mort ---------- */
-.sheet.loupe { width: min(900px, 100%); text-align: center; }
-.sheet.loupe p { font-size: 20px; margin: 0 0 6px; }
-.loupe-cards { display: flex; justify-content: center; gap: 12px; padding: 18px 0 6px; }
-.loupe-cards .pick { border: 0; background: none; padding: 0; animation: pop .35s cubic-bezier(.3,1.6,.5,1) backwards; }
-.loupe-cards .pick .card { transition: transform .12s; }
-.loupe-cards .pick:active .card { transform: translateY(-10px) scale(1.04); }
 
 /* ---------- Fiches du cours ---------- */
 .btn.fiche-link { width: 100%; justify-content: flex-start; text-align: left; font-size: 18px; gap: 10px; margin-top: 4px; color: var(--navy); }
@@ -527,7 +520,6 @@ body.tel .sheet { padding: 16px 16px; border-radius: 18px; max-height: 96%; }
 body.tel .sheet h2 { font-size: 23px; }
 body.tel .sheet p { font-size: 18px; }
 body.tel .sheet .btns .btn { min-width: 130px; }
-body.tel .loupe-cards { flex-wrap: wrap; padding-top: 14px; }
 body.tel .page .inner { padding: 18px 14px 50px; }
 body.tel .page h1 { font-size: 29px; }
 body.tel .page h2 { font-size: 23px; }
@@ -617,3 +609,20 @@ body.tel .mi-row .btn { min-width: 0; flex: 1 1 100%; min-height: 48px; }
 body.tel .mi-lock { width: auto; }
 body.tel .mi-lesson { font-size: 17px; }
 .explain .t .ico { width: 24px; height: 24px; flex: none; }
+
+/* mort : la carte soulevée monte à peine, pour ne pas cacher celle du dessus */
+.dummy .card.sel, .dummy .card.hint { transform: translateY(-5px); }
+/* fiche ouverte par le Conseil : la main en rappel, et la réponse seulement si on la demande */
+.fiche-think { display: flex; align-items: center; gap: 14px; padding: 10px 14px; background: #fdf0d5; border-bottom: 2px solid var(--gold); }
+.ft-txt { flex: 1; min-width: 0; font-size: 19px; line-height: 1.45; color: var(--ink); }
+.ft-s { display: inline-flex; align-items: center; gap: 4px; margin-left: 10px; font-weight: 800; white-space: nowrap; }
+.ft-p { margin-left: 12px; white-space: nowrap; }
+.fiche-think .btn { flex: none; min-height: 58px; padding: 6px 24px; }
+body.tel .fiche-think { flex-wrap: wrap; gap: 8px; padding: 8px 10px; }
+body.tel .ft-txt { font-size: 16px; flex-basis: 100%; }
+body.tel .ft-s { margin-left: 6px; }
+body.tel .fiche-think .btn { width: 100%; min-height: 48px; }
+body.tel .tag.slim .nm small { display: none; }
+body.tel .tag.slim { padding-right: 6px; gap: 4px; }
+/* les téléphones les plus étroits : noms un peu plus petits pour que les trois joueurs du haut tiennent */
+@media (max-width: 380px) { body.tel .tag { font-size: 13.5px; } body.tel .tag.perso .av { width: 30px; height: 30px; } body.tel .zone-w .tag.perso, body.tel .zone-e .tag.perso { padding: 4px 5px 3px; column-gap: 3px; } }

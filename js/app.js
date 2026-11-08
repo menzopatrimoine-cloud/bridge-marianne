@@ -5,7 +5,7 @@ window.addEventListener("error", e => { window.__err = (window.__err || "") + e.
 const STORE = 'bridge-marianne-v1';
 const $app = document.getElementById('app');
 const $modal = document.getElementById('modal-root');
-const DEFAULTS = { cardSize: 'grand', fourColors: false, speed: 'normal', doubleTap: true, showPoints: true, checkBids: true, deals: 'hasard', sound: true, volume: 'moyen', voice: false, animations: true };
+const DEFAULTS = { cardSize: 'grand', fourColors: false, speed: 'normal', doubleTap: true, showPoints: true, checkBids: true, deals: 'hasard', sound: true, volume: 'moyen', music: 'douce', voice: false, animations: true };
 const ORDER = [2, 3, 0, 1];                 // colonnes du tableau d'enchères : S O N E
 const SPEED = { lent: 1.6, normal: 1, rapide: 0.55 };
 
@@ -494,7 +494,7 @@ function deviation(h, call) {
     <div class="btns"><button class="btn primary" data-m="sugg">Dire ${callHTML(h.call, true)}</button><button class="btn" data-m="mine">Garder ${callHTML(call, true)}</button></div>`,
   v => { if (v === 'sugg') submitCall(h.call, true); else if (v === 'mine') submitCall(call, true); });
 }
-function tapCard(seat, c, fromLoupe) {
+function tapCard(seat, c) {
   const g = G.game;
   if (!g || g.phase !== 'play' || holdTrick) return;
   const p = g.play;
@@ -513,27 +513,9 @@ function tapCard(seat, c, fromLoupe) {
     toast(`Vous devez fournir à ${su(ls)} ${B.SUIT_NAME[ls]}.`);
     return;
   }
-  if (seat === 0 && !fromLoupe) {
-    const same = p.hands[0].filter(x => B.suitOf(x) === B.suitOf(c));
-    if (same.length > 1) { loupe(c, same); return; }
-  }
-  if (G.settings.doubleTap && selected !== c && !fromLoupe) { selected = c; snd('select'); render(); return; }
+  if (G.settings.doubleTap && selected !== c) { selected = c; snd('select'); render(); return; }
   pushUndo();
   doPlay(seat, c);
-}
-// les cartes d'une couleur du mort, en grand et côte à côte : un toucher sur la bonne carte la joue
-function loupe(c, cards) {
-  const g = G.game, s = B.suitOf(c);
-  const list = cards.slice().sort((x, y) => B.rankOf(y) - B.rankOf(x));
-  const n = list.length;
-  const room = Math.min(900, window.innerWidth - 40) - (tel() ? 32 : 48);
-  const perRow = (room - (n - 1) * 12) / n < 64 ? Math.ceil(n / 2) : n;
-  const cw = Math.max(56, Math.min(130, (room - (perRow - 1) * 12) / perRow));
-  snd('select');
-  modal(`<h2>Les ${su(s)} ${g.play.dummy === 0 ? 'du mort' : 'de ' + nameOf(0)}</h2><p>Touchez la carte que vous voulez jouer.</p>
-    <div class="loupe-cards" style="--cw:${cw}px;--ch:${cw * 1.42}px">${list.map((x, i) => `<button class="pick" data-m="${x}" style="animation-delay:${i * 45}ms">${cardHTML(x, x === hintCard ? 'hint' : '')}</button>`).join('')}</div>
-    <div class="btns"><button class="btn" data-m="no">Fermer</button></div>`,
-  v => { if (v !== 'no') tapCard(0, +v, true); }, 'loupe');
 }
 function undo() {
   const g = G.game;
@@ -559,12 +541,15 @@ function hint() {
     const h = B.decide(g.hands[2], g.auction, g.dealer);
     const hand = g.hands[2];
     const l = B.lens(hand);
-    modal(`<h2>Conseil : ${callHTML(h.call, true)}</h2>
+    const answer = () => modal(`<h2>Conseil : ${callHTML(h.call, true)}</h2>
       <p><b>${rich(h.m.name)}.</b> ${rich(h.m.text)}</p>
       <p style="color:var(--muted)">Votre main : <b>${B.hcp(hand)} points H</b>, ${B.HL(hand)} points HL ; ${[0, 1, 2, 3].map(s => l[s] + ' ' + su(s)).join(', ')}.</p>
       ${h.sure ? (h.m.fiche ? ficheBtn(h.m.fiche) : '') : '<p style="color:var(--muted)">Cette situation n\'est pas dans les fiches : c\'est la suggestion du robot.</p>'}
       <div class="btns"><button class="btn primary" data-m="bid">Annoncer ${callHTML(h.call, true)}</button><button class="btn" data-m="no">Fermer</button></div>`,
     v => { if (v === 'bid') submitCall(h.call, true); });
+    // d'abord la fiche du cours, pour réfléchir ; la réponse seulement si elle est demandée
+    if (h.sure && FICHE_PAGES[h.m.fiche]) openFiche(h.m.fiche, { hand, answer });
+    else answer();
     return;
   }
   if (g.phase === 'play') {
@@ -1101,6 +1086,12 @@ function layout(shrink) {
   cw = Math.max(52 * shrink, cw);
   const step = Math.min(cw * 0.66, (handW - cw) / Math.max(1, long - 1));
   let cwS = cw * 0.74;
+  // téléphone en portrait : si le nom de Nord touche ceux d'Ouest et d'Est, on retire sa 2e ligne (« Nord · partenaire »)
+  if (port) {
+    const nt = nz.querySelector('.tag');
+    nt.classList.remove('slim');
+    if (nt.offsetWidth > W - 2 * (Math.max(wz.querySelector('.tag').offsetWidth, ez.querySelector('.tag').offsetWidth) + 7) - 6) nt.classList.add('slim');
+  }
   // téléphone en portrait : les colonnes du mort de Nord tiennent entre les noms d'Ouest et d'Est
   if (port) cwS = Math.max(34, Math.min(cwS, (W - 2 * (Math.max(wz.querySelector('.tag').offsetWidth, ez.querySelector('.tag').offsetWidth) + 8) - 12) / 4.42));
   // hauteur visible de chaque carte dans les colonnes du mort
@@ -1183,6 +1174,7 @@ function renderSettings() {
     <div class="setting"><div class="lbl">Afficher mes points<small>Le nombre de points H et HL sous la boîte d'enchères.</small></div>${seg('showPoints', [[true, 'Oui'], [false, 'Non']])}</div>
     <div class="setting"><div class="lbl">Sons<small>Bruit des cartes, petite cloche quand c'est à vous, musique en fin de donne.</small></div>${seg('sound', [[true, 'Oui'], [false, 'Non']])}</div>
     <div class="setting"><div class="lbl">Volume des sons</div>${seg('volume', [['faible', 'Faible'], ['moyen', 'Moyen'], ['fort', 'Fort']])}</div>
+    <div class="setting"><div class="lbl">Musique d'ambiance<small>Un air de casino de la Côte d'Azur, tout doux, pendant le jeu.</small></div>${seg('music', [['non', 'Non'], ['douce', 'Douce'], ['moyenne', 'Moyenne'], ['forte', 'Forte']])}</div>
     <div class="setting"><div class="lbl">Enchères à voix haute<small>Les robots disent leurs enchères avec la voix de l'iPad (« Nord : un cœur »).</small></div>${seg('voice', [[true, 'Oui'], [false, 'Non']])}</div>
     <div class="setting"><div class="lbl">Animations<small>Les cartes volent jusqu'au centre, les plis glissent vers le gagnant.</small></div>${seg('animations', [[true, 'Oui'], [false, 'Non']])}</div>
     <button class="btn" data-act="sound-test" style="max-width:420px;margin:6px 0 10px">Tester le son</button>
@@ -1246,7 +1238,7 @@ function renderHelp() {
     <h2>Le jeu de la carte</h2>
     <ul>
       <li>Touchez une carte pour la <b>soulever</b>, touchez-la une 2e fois pour la <b>jouer</b>. Les cartes grisées ne peuvent pas être jouées (il faut fournir à la couleur demandée).</li>
-      <li>Quand votre camp joue le contrat, <b>vous jouez aussi les cartes du mort</b> (votre partenaire, en haut). Touchez une couleur du mort : ses cartes s'affichent en grand pour bien choisir.</li>
+      <li>Quand votre camp joue le contrat, <b>vous jouez aussi les cartes du mort</b> (votre partenaire, en haut). Touchez directement la carte du mort que vous voulez jouer.</li>
       <li>Quand les adversaires jouent le contrat, le mort est étalé sur le côté après l'entame.</li>
     </ul>
     <h2>Les missions</h2>
@@ -1258,7 +1250,7 @@ function renderHelp() {
     </ul>
     <h2>Les boutons</h2>
     <ul>
-      <li><b>Conseil</b> : l'enchère ou la carte que le cours recommande, avec la raison.</li>
+      <li><b>Conseil</b> : pendant les enchères, la fiche du cours s'ouvre d'abord pour que vous réfléchissiez ; touchez « Voir la réponse » si vous voulez l'enchère recommandée. Pendant le jeu, la carte que le cours recommande, avec la raison.</li>
       <li><b>Annuler</b> : revenir avant votre dernière enchère ou votre dernière carte.</li>
       <li><b>Dernier pli</b> : revoir les 4 cartes du pli précédent.</li>
       <li><b>Réclamer</b> : terminer la donne quand toutes vos cartes sont maîtresses.</li>
@@ -1642,7 +1634,7 @@ $app.addEventListener('click', e => {
   }
 });
 // une fiche du cours, en grand, par-dessus le jeu (images en cache : marche sans internet)
-function openFiche(id) {
+function openFiche(id, think) {
   const n = FICHE_PAGES[id];
   if (!n) return;
   let zoom = 1;
@@ -1650,12 +1642,15 @@ function openFiche(id) {
   v.className = 'fiche-view';
   v.innerHTML = `<div class="bar"><div class="ttl">Fiche du cours n° ${id}<small>${rich(B.FICHES[id])}</small></div>
     <button class="btn" data-z="-1">A−</button><button class="btn" data-z="1">A+</button><button class="btn primary" data-close>Fermer</button></div>
+    ${think ? `<div class="fiche-think"><div class="ft-txt"><b>Réfléchissez avec la fiche.</b> Votre main : ${[0, 1, 2, 3].map(s => `<span class="ft-s">${su(s)} ${B.ranksIn(think.hand, s).map(x => B.RANK_TXT[x]).join(' ') || '—'}</span>`).join('')}<span class="ft-p"><b>${B.hcp(think.hand)} points H</b>, ${B.HL(think.hand)} points HL</span></div>
+      <button class="btn gold" data-answer>Voir la réponse</button></div>` : ''}
     <div class="pages">${Array.from({ length: n }, (_, i) => `<img src="fiches/f${id}-${i + 1}.jpg?v=4" alt="Fiche ${id}, page ${i + 1}">`).join('')}</div>`;
   document.body.appendChild(v);
   snd('select');
   const pages = v.querySelector('.pages');
   v.addEventListener('click', e => {
     if (e.target.closest('[data-close]')) { v.remove(); return; }
+    if (e.target.closest('[data-answer]')) { v.remove(); think.answer(); return; }
     const z = e.target.closest('[data-z]');
     if (z) { zoom = Math.max(0.6, Math.min(2.2, zoom + 0.4 * +z.dataset.z)); pages.style.setProperty('--z', zoom); }
   });

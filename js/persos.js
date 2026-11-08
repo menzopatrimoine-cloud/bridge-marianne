@@ -54,11 +54,11 @@ const PERSOS = [
     gagne: 'Une pièce rare, cette levée ! Je la garde.', perd: 'Superbe. Une vraie pièce de collection.',
     avecGagne: 'Une victoire de grande valeur : je la mets en vitrine !', avecPerd: 'Un petit défaut sur la pièce… elle garde tout son charme.',
     av: { bg: '#e6c2b0', skin: '#efc6a8', hair: '#bdb8ae', style: 'raie', outfit: 'gilet', cloth: '#7b4a2a', accent: '#1f5c4a', tie: 'noeud', monocle: true, mustache: 'fine' } },
-  { name: 'Colette', title: 'la cheffe étoilée de Mougins',
-    bio: 'Ancienne cheffe étoilée à Mougins. Mijote ses enchères à feu doux… puis vous sert le chelem.',
-    gagne: 'Et voilà, c\'est servi chaud !', perd: 'Délicieux ! Je vous mets trois étoiles.',
-    avecGagne: 'Une recette parfaite, cuisinée à deux !', avecPerd: 'Un peu trop cuit… On remet la casserole sur le feu !',
-    av: { bg: '#f6c9a8', skin: '#f1cbb0', hair: '#cfcac2', style: 'court-f', outfit: 'cuisine', cloth: '#ffffff', hat: 'toque', earrings: 'perle' } },
+  { name: 'Colette', title: 'la retraitée au grand cœur d\'Antibes',
+    bio: 'Retraitée à Antibes, cheveux gris coupés court. Elle a tout son temps et une patience d\'ange : avec elle, un débutant a toujours droit à un sourire et à une explication.',
+    gagne: 'Ce n\'est rien : c\'est comme ça qu\'on apprend. Vous y êtes presque !', perd: 'Bravo, vous progressez à vue d\'œil !',
+    avecGagne: 'Très bien joué ! Vous voyez, ce n\'était pas si difficile.', avecPerd: 'Ce n\'est pas grave du tout : on regarde ça ensemble et on recommence.',
+    av: { bg: '#f6c9a8', skin: '#f1cbb0', hair: '#a9abae', style: 'court-f', outfit: 'robe', cloth: '#7f9e8a', earrings: 'perle' } },
   { name: 'Albert', title: 'le banquier de Monaco',
     bio: 'A dirigé une banque privée à Monaco. Ne joue que des cartes à haut rendement et garde toujours un atout en réserve, comme ses lingots.',
     gagne: 'Excellent placement : les intérêts sont pour nous.', perd: 'Beau rendement, je dois l\'admettre.',
@@ -69,6 +69,36 @@ const PERSOS = [
     gagne: 'La maison vous remercie de votre visite !', perd: 'Bravo ! Je vous offre la suite avec vue mer.',
     avecGagne: 'Champagne pour notre table ! Bravo.', avecPerd: 'La maison vous offre la revanche, bien sûr !',
     av: { bg: '#bcd4ef', skin: '#f3d0b8', hair: '#f7f5f0', style: 'brushing', outfit: 'robe', cloth: '#2f5d9e', pearls: true, earrings: 'perle', lips: true } },
+  { name: 'Anne-Marie', title: 'la présidente de l\'Hippocampe',
+    bio: 'Présidente de l\'Hippocampe, l\'association de bridge de Villefranche-sur-Mer. Très dynamique et toujours disponible : un tournoi à organiser, une donne à expliquer, elle répond présente.',
+    gagne: 'Belle partie ! Je vous attends au prochain tournoi à Villefranche.', perd: 'Bravo ! Je vous inscris tout de suite à l\'Hippocampe.',
+    avecGagne: 'Quelle équipe ! On s\'inscrit ensemble au prochain tournoi ?', avecPerd: 'Pas grave, je suis disponible : on la rejoue quand vous voulez !',
+    av: { bg: '#a8dbe0', skin: '#f0c9ad', hair: '#b58a5e', style: 'carre', outfit: 'robe', cloth: '#0e7c8a', earrings: 'or', lips: true, broche: true } },
+  { name: 'Christine', title: 'la danseuse toujours de bonne humeur',
+    bio: 'Toujours de bonne humeur, elle joue au bridge aussi bien qu\'elle danse. Rien ne l\'arrête pour danser, pas même une rupture du col du fémur.',
+    gagne: 'Et hop, un petit pas de danse pour fêter ça !', perd: 'Bravo ! Vous m\'accordez cette danse ?',
+    avecGagne: 'On a dansé sur leurs atouts, partenaire !', avecPerd: 'Même pas mal ! J\'ai connu pire, et j\'ai continué à danser.',
+    av: { bg: '#ffd9a8', skin: '#f2cbb0', hair: '#c9964f', style: 'frise', outfit: 'robe', cloth: '#d0342c', earrings: 'or', lips: true, fleur: true } },
+  { name: 'Roger', title: 'le chef du bridge de l\'Hippocampe',
+    bio: 'Le chef du bridge. Il trouve toujours une solution et donne son temps le jeudi à l\'Hippocampe, à Villefranche-sur-Mer.',
+    gagne: 'J\'ai trouvé la solution : elle était dans mon jeu !', perd: 'Bien joué ! On en reparle jeudi à l\'Hippocampe ?',
+    avecGagne: 'Vous voyez, il y a toujours une solution !', avecPerd: 'Pas de problème, on va trouver la solution. Rendez-vous jeudi !',
+    av: { bg: '#cfe0c8', skin: '#ecc4a6', hair: '#c2c0ba', style: 'raie', outfit: 'polo', cloth: '#1f4f7a', accent: '#ffffff', glasses: 'carre', glassColor: '#333333', broche: true } },
+  { name: 'Dédé', title: 'dit André, le brave',
+    bio: 'Dédé, dit André, joue bien et donne volontiers des conseils. Il ouvre même quand il n\'a pas forcément les points : il est brave.',
+    gagne: 'Je n\'avais pas les points, mais j\'ai ouvert quand même !', perd: 'Bien joué ! Un petit conseil : continuez comme ça.',
+    avecGagne: 'Bravo ! Vous voyez, il faut oser.', avecPerd: 'J\'ai peut-être ouvert un peu léger… mais quel courage !',
+    av: { bg: '#e9d3c0', skin: '#e8ba96', hair: '#eeece6', style: 'court', outfit: 'col-roule', cloth: '#b5482f', hat: 'beret', hatColor: '#26303f', mustache: 'large' } },
+  { name: 'Thierry', title: 'le benjamin de l\'aéronautique',
+    bio: 'Le plus jeune de la bande, mais déjà retraité : il a fait carrière dans l\'aéronautique. Le mardi, il apporte des chouchous à l\'Hippocampe.',
+    gagne: 'Décollage réussi ! Un chouchou pour fêter ça ?', perd: 'Bravo, atterrissage parfait ! Je vous offre un chouchou.',
+    avecGagne: 'Vol sans turbulence, partenaire ! Chouchous pour tout le monde.', avecPerd: 'Petite turbulence… Prenez un chouchou, ça repart !',
+    av: { bg: '#bcdcf2', skin: '#f0c8a8', hair: '#6b5a48', style: 'court', outfit: 'polo', cloth: '#3f6d9e', accent: '#ffffff', avion: true } },
+  { name: 'Cathy', title: 'la reine de la country',
+    bio: 'Bridge, danse et gymnastique : Cathy ne tient pas en place. C\'est la reine de la country.',
+    gagne: 'Yee-haw ! Celle-là, je la danse en ligne.', perd: 'Bravo ! Chapeau bas… et c\'est un chapeau de cow-boy.',
+    avecGagne: 'Yee-haw, partenaire ! On a gagné en rythme.', avecPerd: 'Allez, souplesse ! Un petit échauffement et on repart.',
+    av: { bg: '#f5dfa6', skin: '#f1c9aa', hair: '#d8b878', style: 'carre', outfit: 'robe', cloth: '#3f6fa8', earrings: 'or', lips: true, hat: 'cowboy', hatColor: '#a8743e' } },
 ];
 
 const BROW = 'rgba(90, 80, 70, .75)';
@@ -185,6 +215,11 @@ function extras(a) {
   if (a.earrings === 'perle') s += '<circle cx="28.5" cy="57.5" r="2.3" fill="#fbf8f0" stroke="rgba(0,0,0,.2)" stroke-width=".6"/><circle cx="71.5" cy="57.5" r="2.3" fill="#fbf8f0" stroke="rgba(0,0,0,.2)" stroke-width=".6"/>';
   if (a.earrings === 'or') s += '<circle cx="28.5" cy="58" r="2.6" fill="none" stroke="#d4a72c" stroke-width="1.4"/><circle cx="71.5" cy="58" r="2.6" fill="none" stroke="#d4a72c" stroke-width="1.4"/>';
   if (a.pearls) s += pearls(50, 77, 24, 8, 11, '#fbf8f0', 1.7);
+  // broche en forme d'hippocampe (Anne-Marie)
+  if (a.broche) s += '<path d="M36.5 83 C40.5 81.5 42.5 85.5 40 88 C38 90 39.5 93.5 42 94 C44.5 94.5 45.5 92 43.5 91.2 M37 83.6 L33 85.2 M41 86.4 L43.8 87.4" stroke="#f0c64a" stroke-width="1.7" fill="none" stroke-linecap="round"/><circle cx="37.6" cy="84" r=".6" fill="#7a5a10"/>';
+  // fleur dans les cheveux (Christine) et petit avion sur le polo (Thierry)
+  if (a.fleur) s += [[67, 24], [72.5, 27.5], [70.5, 33.5], [64, 33.5], [62, 27.5]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="3.7" fill="#e23b3b" stroke="rgba(0,0,0,.12)" stroke-width=".6"/>`).join('') + '<circle cx="67.3" cy="29.3" r="2.6" fill="#f6cf45"/>';
+  if (a.avion) s += '<path d="M56 89 L70 85 L71 86.2 L65 89.2 L66.5 93 L65 93.4 L62.2 90.2 L58.5 91.4 L56.4 90.4Z" fill="#f4f6fa" stroke="rgba(0,0,0,.2)" stroke-width=".5"/>';
   if (a.necklace) s += pearls(50, 78, 26, 9, 8, ['#e8b923', '#d2232a', '#2a8fbd', '#3aa76d'], 2.6);
   if (a.monocle) s += '<circle cx="58" cy="48" r="6.4" fill="rgba(255,255,255,.2)" stroke="#c9a34a" stroke-width="1.8"/><path d="M63.5 52 Q68 66 62 78" stroke="#c9a34a" stroke-width="1" fill="none"/>';
   if (a.sunglasses) s += `<ellipse cx="41" cy="27" rx="7.5" ry="5.2" fill="#262626"/><ellipse cx="59" cy="27" rx="7.5" ry="5.2" fill="#262626"/>
@@ -205,6 +240,15 @@ function hat(a) {
     case 'toque':
       return `<path d="M33 33 V21 C25 19 26 6.5 36.5 8.5 C39 -0.5 61 -0.5 63.5 8.5 C74 6.5 75 19 67 21 V33Z" fill="#fff" stroke="#dcd8cf" stroke-width="1.2"/>
         <path d="M33 27 H67 M42 21 V12 M50 21 V9 M58 21 V12" stroke="#e4e0d7" stroke-width="1.2" fill="none"/>`;
+    case 'cowboy': {
+      const c = a.hatColor || '#a8743e';
+      return `<path d="M35 33 C35 18 41 10.5 46 12.5 Q50 15.5 54 12.5 C59 10.5 65 18 65 33Z" fill="${c}"/><path d="M35 28.5 Q50 32.5 65 28.5 L65 33 Q50 36.5 35 33Z" fill="#4a2c14"/>
+        <path d="M15 26 C22 35.5 38 34.5 50 34.5 C62 34.5 78 35.5 85 26 C83 38 66 40.5 50 40 C34 40.5 17 38 15 26Z" fill="${c}" stroke="rgba(0,0,0,.18)" stroke-width="1"/>`;
+    }
+    case 'beret': {
+      const c = a.hatColor || '#26303f';
+      return `<path d="M26.5 32 C24 19 40 12.5 55 13.5 C70 14.5 77 25 73.5 32 Q50 24.5 26.5 32Z" fill="${c}"/><path d="M51 14 q1 -4.5 3.5 -5.5" stroke="${c}" stroke-width="2.2" fill="none" stroke-linecap="round"/>`;
+    }
     case 'visiere': {
       const c = a.hatColor || '#fff';
       return `<path d="M28 34 Q50 25 72 34 L72 37.5 Q50 29.5 28 37.5Z" fill="${c}" stroke="rgba(0,0,0,.12)" stroke-width="1"/>
