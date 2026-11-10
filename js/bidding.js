@@ -17,6 +17,7 @@ const FICHES = {
   '06': 'Ouvertures faibles 2♥ ou 2♠', '07': 'Ouvertures fortes, tableau', '08': 'Ouvertures fortes, résumé',
   '09': 'Jeu de la carte', '10': 'Interventions en 2ème position', '11': 'Ouverture 1 SA et Stayman',
   '12': 'Barrages niveaux 3 et 4', '13': 'Réponses au contre d\'intervention',
+  '14': 'Après ouverture 1 SA : Stayman et Texas', '15': 'Règle des 9',
 };
 
 /* ---------- Sens d'une enchère ---------- */
@@ -270,16 +271,19 @@ function respMinor(c) {
 function resp1N(c) {
   const o = [];
   const st45 = (h, a) => HL(h) >= 8 && L(h, a) === 5 && L(h, 1 - a) === 4;
-  o.push(opt('2H', M('Texas Pique', { pts: [0, 37], unit: 'HL', len: ln({ S: [5, 13] }), forcing: 1, alert: true, fiche: '04',
+  o.push(opt('2H', M('Texas Pique', { pts: [0, 37], unit: 'HL', len: ln({ S: [5, 13] }), forcing: 1, alert: true, fiche: '14',
     text: 'Au moins 5 piques, tous les points possibles. Demande à l\'ouvreur de dire 2♠.' }), h => L(h, 0) >= 5 && L(h, 0) >= L(h, 1) && !st45(h, 0)));
-  o.push(opt('2D', M('Texas Cœur', { pts: [0, 37], unit: 'HL', len: ln({ H: [5, 13] }), forcing: 1, alert: true, fiche: '04',
+  o.push(opt('2D', M('Texas Cœur', { pts: [0, 37], unit: 'HL', len: ln({ H: [5, 13] }), forcing: 1, alert: true, fiche: '14',
     text: 'Au moins 5 cœurs, tous les points possibles. Demande à l\'ouvreur de dire 2♥.' }), h => L(h, 1) >= 5 && !st45(h, 1)));
   o.push(opt('2C', M('Stayman', { pts: [8, 37], unit: 'HL', forcing: 1, alert: true, fiche: '11',
     text: 'Au moins 8 points HL et une Majeure de 4 cartes (ou 5-4 en Majeures). Demande à l\'ouvreur s\'il a 4 cartes en Majeure.' }),
     h => HL(h) >= 8 && (L(h, 0) === 4 || L(h, 1) === 4) && L(h, 0) <= 5 && L(h, 1) <= 5 && B.shape(h) !== '4333'));
-  o.push(opt('2S', M('Texas Mineur', { pts: [0, 7], unit: 'HL', forcing: 1, alert: true, fiche: '04',
-    text: 'Jeu faible (0 à 7 points) avec 6 cartes ou plus à Trèfle ou à Carreau. L\'ouvreur dit 3♣, le répondant passe ou corrige à 3♦.' }),
-    h => HL(h) <= 7 && (L(h, 3) >= 6 || L(h, 2) >= 6)));
+  o.push(opt('2S', M('Texas Trèfle', { pts: [0, 7], unit: 'HL', len: ln({ C: [6, 13] }), forcing: 1, alert: true, fiche: '14',
+    text: 'Jeu faible (0 à 7 points) avec au moins 6 trèfles. Demande à l\'ouvreur de dire 3♣.' }),
+    h => HL(h) <= 7 && L(h, 3) >= 6 && L(h, 3) >= L(h, 2)));
+  o.push(opt('3C', M('Texas Carreau', { pts: [0, 7], unit: 'HL', len: ln({ D: [6, 13] }), forcing: 1, alert: true, fiche: '14',
+    text: 'Jeu faible (0 à 7 points) avec au moins 6 carreaux. Demande à l\'ouvreur de dire 3♦.' }),
+    h => HL(h) <= 7 && L(h, 2) >= 6));
   o.push(opt('6N', M('Petit chelem à Sans-Atout', { pts: [18, 37], unit: 'H', fiche: '11', conclusion: true, text: '18 points H et plus : le camp a au moins 33 points.' }), h => hcp(h) >= 18));
   o.push(opt('4N', M('Proposition de chelem (quantitatif)', { pts: [15, 17], unit: 'HL', fiche: '11',
     text: '15 à 17 points, pas de Majeure 4e. Avec 17 points, l\'ouvreur répond comme au Blackwood (nombre d\'As) ; sinon il passe.' }), h => HL(h) >= 15));
@@ -588,9 +592,10 @@ function opener1NRebid(c) {
     opt('2H', M('Réponse au Stayman : 4 cœurs', { len: ln({ H: [4, 4], S: [0, 3] }), alert: true, fiche: '11', text: 'L\'ouvreur a 4 cartes à Cœur (et pas 4 piques).' }), h => L(h, 1) === 4),
     opt('2S', M('Réponse au Stayman : 4 piques', { len: ln({ S: [4, 4], H: [0, 3] }), alert: true, fiche: '11', text: 'L\'ouvreur a 4 cartes à Pique (et pas 4 cœurs).' }), h => L(h, 0) === 4),
     opt('2D', M('Réponse au Stayman : pas de Majeure 4e', { len: ln({ H: [0, 3], S: [0, 3] }), alert: true, fiche: '11', text: 'L\'ouvreur n\'a pas 4 cartes en Majeure.' }), () => true)];
-  if (r === '2D') return [opt('2H', M('Texas complété', { fiche: '04', text: 'L\'ouvreur dit 2♥ comme le demande le Texas.' }), () => true)];
-  if (r === '2H') return [opt('2S', M('Texas complété', { fiche: '04', text: 'L\'ouvreur dit 2♠ comme le demande le Texas.' }), () => true)];
-  if (r === '2S') return [opt('3C', M('Texas Mineur complété', { fiche: '04', text: 'L\'ouvreur dit 3♣ : le répondant passe (trèfles) ou dit 3♦ (carreaux).' }), () => true)];
+  if (r === '2D') return [opt('2H', M('Texas complété', { fiche: '14', text: 'L\'ouvreur dit 2♥ comme le demande le Texas.' }), () => true)];
+  if (r === '2H') return [opt('2S', M('Texas complété', { fiche: '14', text: 'L\'ouvreur dit 2♠ comme le demande le Texas.' }), () => true)];
+  if (r === '2S') return [opt('3C', M('Texas complété', { fiche: '14', text: 'L\'ouvreur dit 3♣ comme le demande le Texas.' }), () => true)];
+  if (r === '3C') return [opt('3D', M('Texas complété', { fiche: '14', text: 'L\'ouvreur dit 3♦ comme le demande le Texas.' }), () => true)];
   if (r === '2N') return [
     opt('3N', M('Acceptation : 17 points', { pts: [17, 17], unit: 'H', fiche: '11', conclusion: true, text: 'L\'ouvreur est maximum (17 points).' }), h => hcp(h) >= 17),
     opt('P', M('Refus : 15 ou 16 points', { pts: [15, 16], unit: 'H', fiche: '11', text: 'L\'ouvreur n\'est pas maximum.' }), () => true)];
@@ -649,9 +654,8 @@ function responder1NCont(c) {
       opt('2N', M('Proposition : 5 cartes', { pts: [8, 9], unit: 'HL', len: ln({ [d]: [5, 5] }), fiche: '04', text: `5 cartes à ${nm(t)}, 8 ou 9 points.` }), h => HL(h) >= 8),
       opt('P', M('Passe', { pts: [0, 7], unit: 'HL', len: ln({ [d]: [5, 13] }), fiche: '04', text: `Jeu faible : on joue 2${sym(t)}.` }), () => true)];
   }
-  if (/^1N P 2S P 3C P$/.test(s)) return [
-    opt('3D', M('Correction à Carreau', { len: ln({ D: [6, 13] }), fiche: '04', text: 'Le répondant a des carreaux : on joue 3♦.' }), h => L(h, 2) >= 6 && L(h, 2) > L(h, 3)),
-    opt('P', M('Passe', { len: ln({ C: [6, 13] }), fiche: '04', text: 'Le répondant a des trèfles : on joue 3♣.' }), () => true)];
+  if (/^1N P 2S P 3C P$/.test(s)) return [opt('P', M('Passe', { len: ln({ C: [6, 13] }), fiche: '14', text: 'Le répondant a des trèfles : on joue 3♣.' }), () => true)];
+  if (/^1N P 3C P 3D P$/.test(s)) return [opt('P', M('Passe', { len: ln({ D: [6, 13] }), fiche: '14', text: 'Le répondant a des carreaux : on joue 3♦.' }), () => true)];
   if ((m = /^1N P 4N P (5[CDHS]) P$/.exec(s)) || (m = /^2N P 4N P (5[CDHS]) P$/.exec(s)) || (m = /^1N P 2C P 2D P 4N P (5[CDHS]) P$/.exec(s))) {
     const pa = { '5C': 0, '5D': 1, '5H': 2, '5S': 3 }[m[1]];
     const tot = h => { let p = pa; if (pa === 0 && aces(h) === 0) p = 4; return p + aces(h); };

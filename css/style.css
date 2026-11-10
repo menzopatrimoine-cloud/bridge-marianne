@@ -626,3 +626,47 @@ body.tel .tag.slim .nm small { display: none; }
 body.tel .tag.slim { padding-right: 6px; gap: 4px; }
 /* les téléphones les plus étroits : noms un peu plus petits pour que les trois joueurs du haut tiennent */
 @media (max-width: 380px) { body.tel .tag { font-size: 13.5px; } body.tel .tag.perso .av { width: 30px; height: 30px; } body.tel .zone-w .tag.perso, body.tel .zone-e .tag.perso { padding: 4px 5px 3px; column-gap: 3px; } }
+
+/* ---------- Apprendre : mini-bridge, cours pas à pas, donnes commentées ---------- */
+.home-mini { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.home .home-mini .btn { font-size: 20px; min-height: 58px; }
+.home .btn .ico { width: 28px; height: 28px; }
+.boardno.small { font-size: 18px; line-height: 1.2; }
+.ld-list { display: grid; gap: 8px; }
+.ld-row { display: flex; align-items: center; gap: 12px; width: 100%; background: #fff; border: 2px solid var(--line); border-radius: 14px; padding: 12px 14px; text-align: left; font-size: 20px; color: var(--navy); min-height: 62px; }
+.ld-row:active { background: var(--gold-soft); }
+.ld-row > b { flex: 1; font-weight: 800; }
+.ld-row > i { font-style: normal; font-size: 28px; font-weight: 800; color: var(--navy); line-height: 1; }
+.ld-txt { flex: 1; min-width: 0; line-height: 1.25; }
+.ld-txt b { font-weight: 800; }
+.ld-txt small { display: block; font-size: 16px; font-weight: 500; color: var(--muted); margin-top: 2px; }
+.ld-st { width: 34px; height: 34px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 800; font-size: 19px; color: #fff; flex: none; }
+.ld-st.vide { background: #d8d2c3; } .ld-st.ok { background: var(--ok); } .ld-st.ko { background: var(--ko); } .ld-st.enc { background: var(--warn); }
+.ld-chip { display: inline-block; font-size: 16px; font-weight: 800; padding: 3px 10px; border-radius: 999px; background: #efe9db; color: var(--muted); flex: none; vertical-align: 3px; }
+.ld-chip.part { background: #fdf0d5; color: #8a5b10; } .ld-chip.full { background: #dff1d8; color: #23633a; }
+.ld-niv { font-size: 15px; font-weight: 800; padding: 3px 10px; border-radius: 999px; flex: none; background: #e6eefb; color: #1f4fa3; }
+.ld-niv.facile { background: #dff1d8; color: #23633a; } .ld-niv.moyen { background: #fdf0d5; color: #8a5b10; } .ld-niv.conf { background: #f9d6d0; color: #9b1c1c; }
+.seg.comm-f { display: inline-flex; flex-wrap: wrap; margin: 2px 0 14px; }
+.lc-bloc { background: #fff; border: 2px solid var(--line); border-radius: 14px; padding: 12px 16px; margin: 10px 0; }
+.lc-bloc b { font-size: 21px; color: var(--navy); }
+.lc-bloc p { margin: 4px 0 0; }
+.page ul.lc-points { padding-left: 24px; margin: 8px 0 14px; }
+.page ul.lc-points li { margin: 6px 0; }
+.bidbox .mini-go { background: var(--navy); color: #fff; border-color: var(--navy); }
+.bidbox .mini-go:disabled { background: #fff; color: inherit; }
+.bidbox .calls button.on { background: var(--navy); color: #fff; border-color: var(--navy); }
+.end .mi-comment, .mi-comment { width: 100%; margin: 8px 0; }
+.cm-list { padding-left: 0; list-style: none; display: grid; gap: 8px; }
+.cm-list li { background: #fff; border: 2px solid var(--line); border-radius: 12px; padding: 8px 12px; }
+.cm-h { font-size: 20px; }
+.cm-p { font-size: 17px; font-weight: 800; color: var(--navy); margin-top: 2px; }
+.cm-t { font-size: 18px; line-height: 1.4; margin-top: 3px; }
+.btn.small.cm-f { min-height: 42px; font-size: 16px; margin-top: 6px; padding: 2px 12px; display: inline-flex; }
+.btn.small.cm-f .ico { width: 18px; height: 18px; }
+body.tel .ld-row { font-size: 18px; padding: 10px 11px; gap: 9px; }
+body.tel .ld-txt small { font-size: 15px; }
+body.tel .seg.comm-f button { min-width: 0; padding: 9px 10px; font-size: 16px; }
+body.tel .home .home-mini .btn { font-size: 17px; min-height: 50px; }
+/* les messages sont sur fond bleu nuit : les enseignes doivent y rester lisibles */
+.toast .su0, .toast .su3 { color: #fff; }
+.toast .su1, .toast .su2 { color: #ff9a9a; }

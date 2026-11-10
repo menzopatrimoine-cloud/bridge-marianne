@@ -1,8 +1,8 @@
 /* Service worker : l'application fonctionne sans internet une fois installée */
-const CACHE = 'bridge-marianne-v8';
+const CACHE = 'bridge-marianne-v9';
 const FILES = [
-  './', './index.html', './manifest.webmanifest', './css/style.css?v=8',
-  './js/core.js?v=8', './js/bidding.js?v=8', './js/dd.js?v=8', './js/play.js?v=8', './js/sound.js?v=8', './js/persos.js?v=8', './js/analyse.js?v=8', './js/missions.js?v=8', './js/app.js?v=8',
+  './', './index.html', './manifest.webmanifest', './css/style.css?v=9',
+  './js/core.js?v=9', './js/bidding.js?v=9', './js/dd.js?v=9', './js/play.js?v=9', './js/sound.js?v=9', './js/persos.js?v=9', './js/analyse.js?v=9', './js/missions.js?v=9', './js/lecons-data.js?v=9', './js/lecons.js?v=9', './js/app.js?v=9',
   './fonts/AHN-500.ttf', './fonts/AHN-700.ttf', './fonts/AHN-800.ttf',
   './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png',
   // les fiches du cours (images), pour les ouvrir sans internet
@@ -10,7 +10,7 @@ const FILES = [
   './fiches/f04-1.jpg?v=4', './fiches/f04-2.jpg?v=4', './fiches/f05-1.jpg?v=4', './fiches/f06-1.jpg?v=4', './fiches/f06-2.jpg?v=4',
   './fiches/f07-1.jpg?v=4', './fiches/f07-2.jpg?v=4', './fiches/f07-3.jpg?v=4', './fiches/f08-1.jpg?v=4', './fiches/f08-2.jpg?v=4',
   './fiches/f09-1.jpg?v=4', './fiches/f09-2.jpg?v=4', './fiches/f10-1.jpg?v=4', './fiches/f10-2.jpg?v=4', './fiches/f11-1.jpg?v=4',
-  './fiches/f11-2.jpg?v=4', './fiches/f12-1.jpg?v=4', './fiches/f12-2.jpg?v=4', './fiches/f13-1.jpg?v=4', './fiches/f13-2.jpg?v=4',
+  './fiches/f11-2.jpg?v=4', './fiches/f12-1.jpg?v=4', './fiches/f12-2.jpg?v=4', './fiches/f13-1.jpg?v=4', './fiches/f13-2.jpg?v=4', './fiches/f14-1.jpg?v=4', './fiches/f15-1.jpg?v=4',
 ];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));

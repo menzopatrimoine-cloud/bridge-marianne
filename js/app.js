@@ -76,7 +76,7 @@ const perso = s => B.PERSOS[persoIdx(s) % B.PERSOS.length];
 const nameOf = s => s === 2 ? 'vous' : perso(s).name;
 const esc = t => String(t == null ? '' : t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const seatName = s => s === 2 ? 'Vous' : nameOf(s);
-const FICHE_PAGES = { '01': 3, '02': 1, '03': 1, '04': 2, '05': 1, '06': 2, '07': 3, '08': 2, '09': 2, '10': 2, '11': 2, '12': 2, '13': 2 };
+const FICHE_PAGES = { '01': 3, '02': 1, '03': 1, '04': 2, '05': 1, '06': 2, '07': 3, '08': 2, '09': 2, '10': 2, '11': 2, '12': 2, '13': 2, '14': 1, '15': 1 };
 const ficheBtn = f => FICHE_PAGES[f] ? `<button class="btn fiche-link" data-fiche="${f}">${ICONS.book}<span>Ouvrir la fiche du cours n° ${f} : ${rich(B.FICHES[f])}</span></button>` : '';
 function callHTML(c, long) {
   if (c === 'P') return 'Passe';
@@ -128,19 +128,20 @@ function modal(html, onClick, cls) {
   ov.addEventListener('click', e => {
     const b = e.target.closest('[data-m]');
     if (b) { const v = b.dataset.m; closeModal(); if (onClick) onClick(v); return; }
-    if (e.target === ov && !/\bprofil\b/.test(cls || '')) closeModal();
+    if (e.target === ov && !/\b(profil|noclose)\b/.test(cls || '')) closeModal();
   });
 }
 function closeModal() { $modal.innerHTML = ''; }
 const delay = kind => ({ bid: 900, card: 700, trick: 1100, lead: 1100 })[kind] * SPEED[G.settings.speed];
 
 /* ---------- Donnes ---------- */
-function newDeal(sameHands) {
+function newDeal(sameHands, preset) {
   cancelTimers();
   closeModal();
   let hands, board;
   panelOpen = false; oneRow = false;
-  if (sameHands && G.game) { hands = G.game.hands; board = G.game.board; }
+  if (preset) { hands = preset.hands; board = preset.board; }
+  else if (sameHands && G.game) { hands = G.game.hands; board = G.game.board; }
   else {
     board = G.nextBoard || 1;
     G.nextBoard = board + 1;
@@ -150,10 +151,10 @@ function newDeal(sameHands) {
       if (B.hcp(hands[0]) + B.hcp(hands[2]) >= 22) break;
     }
   }
-  const info = B.boardInfo(board);
+  const info = preset || (typeof board === 'number' ? B.boardInfo(board) : { dealer: G.game.dealer, vul: G.game.vul });
   // trois personnages différents : Est, Ouest et le partenaire Nord
   const picks = sameHands && G.game && G.game.opp && G.game.nord != null ? [G.game.opp[0], G.game.opp[1], G.game.nord] : pickPersos();
-  G.game = { board, dealer: info.dealer, vul: info.vul, hands, auction: [], phase: 'bidding', play: null, contract: null, undo: [], selCall: null, result: null, recorded: false, opp: [picks[0], picks[1]], nord: picks[2] };
+  G.game = { board, dealer: info.dealer, vul: info.vul, hands, auction: [], phase: 'bidding', play: null, contract: null, undo: [], selCall: null, result: null, recorded: false, opp: [picks[0], picks[1]], nord: picks[2], learn: preset ? preset.learn : undefined };
   thinking = -1; holdTrick = false; bidLevel = null; selected = null; hintCard = null; lastPlayed = null;
   fly = null; dealAnim = true; dummyRevealKey = null; newBidIdx = -1; robotActed = true; shownWon = [0, 0];
   screen = 'game';
@@ -296,6 +297,296 @@ function finishMission() {
   say(ok ? 'Mission réussie !' : 'Mission ratée.');
   if (ok && anim()) confetti();
 }
+/* ---------- Apprendre : mini-bridge, cours pas à pas, donnes commentées ---------- */
+const LC = B.lecons;
+const LP = () => G.learn = G.learn || { lu: {}, donnes: {} };
+const boardLabel = g => g.learn || g.mission ? g.board : 'Donne n° ' + g.board;
+let learnView = { theme: 'contrat', lecon: null, chap: 'c1', filtre: 'tout' };
+const ldKey = (kind, group, i) => `${kind}:${group}:${i}`;
+const stIcon = st => `<span class="ld-st ${st || 'vide'}">${st === 'ok' ? '✓' : st === 'ko' ? '✗' : st === 'enc' ? '…' : ''}</span>`;
+function groupProgress(kind, group) {
+  const n = LC.count(kind, group), d = LP().donnes;
+  let ok = 0, any = false;
+  for (let i = 0; i < n; i++) { const st = d[ldKey(kind, group, i)]; if (st === 'ok') ok++; if (st) any = true; }
+  return { n, ok, any };
+}
+const chip = (a, b) => `<span class="ld-chip ${a >= b ? 'full' : a ? 'part' : ''}">${a}/${b}</span>`;
+function dealRows(kind, group) {
+  const n = LC.count(kind, group), d = LP().donnes;
+  return Array.from({ length: n }, (_, i) => `<button class="ld-row" data-act="ld:${kind}:${group}:${i}">${stIcon(d[ldKey(kind, group, i)])}<b>Donne ${i + 1}</b><i>›</i></button>`).join('');
+}
+function startLearn(kind, group, i) {
+  const d = LC.dealOf(LC.seedOf(kind, group, i));
+  const learn = { kind, group, i, key: ldKey(kind, group, i) }, label = LC.labelOf(kind, group, i), don = LP().donnes;
+  if (don[learn.key] !== 'ok') don[learn.key] = 'enc';
+  if (kind === 'mini') startMini(d, learn, label);
+  else newDeal(false, { hands: d.hands, dealer: d.dealer, vul: d.vul, board: label, learn });
+}
+function learnBack() {
+  const l = G.game && G.game.learn;
+  if (l && l.kind === 'mini') { learnView.theme = l.group; screen = 'lm'; }
+  else if (l && l.kind === 'cours') { learnView.chap = l.group; screen = 'chapitre'; }
+  else screen = 'comm';
+  cancelTimers();
+  render();
+}
+function learnNext() {
+  const l = G.game.learn;
+  if (l.i + 1 < LC.count(l.kind, l.group)) startLearn(l.kind, l.group, l.i + 1);
+  else { learnBack(); toast('C\'était la dernière donne de cette série. Bravo !'); }
+}
+function bidErrors(g) {
+  let n = 0;
+  g.auction.forEach((call, i) => {
+    if ((g.dealer + i) % 4 !== 2) return;
+    const h = B.decide(g.hands[2], g.auction.slice(0, i), g.dealer);
+    if (h.sure && h.call !== call) n++;
+  });
+  return n;
+}
+function learnResult() {
+  const g = G.game, l = g.learn, ch = l.kind === 'cours' && LC.chapitre(l.group);
+  const ok = (ch && ch.type === 'bid') || g.result.passed ? bidErrors(g) === 0 : g.result.ns > 0;
+  const don = LP().donnes;
+  don[l.key] = ok || don[l.key] === 'ok' ? 'ok' : 'ko';
+}
+// cours : les enchères sont finies, on propose le commentaire ou de jouer la carte
+function afterBids() {
+  const g = G.game, errs = bidErrors(g), l = g.learn, don = LP().donnes;
+  don[l.key] = !errs || don[l.key] === 'ok' ? 'ok' : 'ko';
+  save();
+  render();
+  clearToast();
+  modal(`<h2>${errs ? 'Enchères terminées' : 'Bravo, vos enchères suivent le cours !'}</h2>
+    ${errs ? `<p><b>${plural(errs, 'enchère')}</b> s'écarte${errs > 1 ? 'nt' : ''} du cours : le commentaire montre ce qu'il fallait dire.</p>` : ''}
+    <p>Contrat : <b>${contractHTML(g.contract)}</b> joué par ${nameOf(g.contract.declarer)}.</p>
+    <div class="btns"><button class="btn primary" data-m="comment">${ICONS.book}Lire le commentaire</button><button class="btn" data-m="play">Jouer la carte</button></div>`,
+  v => { if (v === 'comment') { screen = 'comment'; render(); } else step(); }, 'noclose');
+}
+
+/* --- le mini-bridge : compter les points, savoir qui joue, choisir le contrat --- */
+function startMini(d, learn, label) {
+  cancelTimers();
+  closeModal();
+  panelOpen = false; oneRow = false;
+  const picks = pickPersos(), info = LC.miniInfo(d.hands);
+  G.game = { board: label, dealer: d.dealer, vul: '-', hands: d.hands, auction: [], phase: 'mini', play: null, contract: null, undo: [], selCall: null, result: null, recorded: false,
+    opp: [picks[0], picks[1]], nord: picks[2], learn, mini: Object.assign(info, { step: 0, den: null, manche: null }) };
+  thinking = -1; holdTrick = false; bidLevel = null; selected = null; hintCard = null; lastPlayed = null;
+  fly = null; dealAnim = true; dummyRevealKey = null; newBidIdx = -1; robotActed = true; shownWon = [0, 0]; dealing = false; bidboxEnter = true;
+  screen = 'game';
+  save();
+  snd('shuffle');
+  render();
+}
+function miniBoxHTML() {
+  const g = G.game, m = g.mini, enter = bidboxEnter && anim();
+  bidboxEnter = false;
+  let body;
+  if (m.step === 0) {
+    const v = m.pts[2], opts = [v, v + 1, v + 3, Math.max(0, v - 2)].filter((x, i, a) => a.indexOf(x) === i).sort((a, b) => a - b);
+    body = `<div class="title">Combien de points H avez-vous ?</div><div class="row levels">${opts.map(x => `<button data-act="mini:pts:${x}">${x}</button>`).join('')}</div>
+      <div class="pts">As = 4 · Roi = 3 · Dame = 2 · Valet = 1</div>`;
+  } else if (m.step === 1) {
+    body = `<div class="title">Quel camp joue le contrat ?</div><div class="pts">Nord-Sud : <b>${m.ns} points</b> · Est-Ouest : <b>${m.eo} points</b></div>
+      <div class="row calls"><button data-act="mini:side:0">Nord-Sud</button><button data-act="mini:side:1">Est-Ouest</button></div>`;
+  } else {
+    const dens = [['C', 3], ['D', 2], ['H', 1], ['S', 0], ['N', -1]];
+    const lab = man => m.den ? callHTML(LC.miniLevel(m.den, man) + m.den, true) : '';
+    body = `<div class="title">Choisissez le contrat</div><div class="pts">Votre camp a <b>${m.ns} points</b></div>
+      <div class="row dens">${dens.map(([d, x]) => `<button data-act="mini:den:${d}" class="${d === 'N' ? 'nt' : ''} ${m.den === d ? 'on' : ''}">${x >= 0 ? su(x) : 'SA'}</button>`).join('')}</div>
+      <div class="row calls"><button data-act="mini:man:0" class="${m.manche === false ? 'on' : ''}">Partielle ${lab(false)}</button><button data-act="mini:man:1" class="${m.manche === true ? 'on' : ''}">Manche ${lab(true)}</button></div>
+      <div class="row calls"><button class="mini-go" data-act="mini:ok" ${m.den && m.manche != null ? '' : 'disabled'}>Jouer ce contrat</button></div>`;
+  }
+  return `<div class="bidbox ${enter ? 'enter' : ''}">${body}</div>`;
+}
+function setMiniContract(ct) {
+  const g = G.game;
+  g.contract = { level: ct.level, den: ct.den, dbl: 0, declarer: ct.declarer };
+  g.play = B.newPlay(g.hands, g.contract);
+  g.play.auction = [];
+  g.play.dealer = g.dealer;
+  g.phase = 'play';
+  const ns = B.sideOf(ct.declarer) === 0;
+  toast(`Contrat : <b>${contractHTML(g.contract)}</b> joué par ${nameOf(ct.declarer)}.<br>${ns ? `${nameOf(g.play.leader)} entame, puis vous jouez aussi les cartes du mort.` : g.play.leader === 2 ? 'C\'est à vous d\'entamer.' : nameOf(g.play.leader) + ' entame.'}`, 4600);
+  save();
+  step();
+}
+function miniAct(what, val) {
+  const g = G.game, m = g.mini;
+  if (!m || g.phase !== 'mini') return;
+  if (what === 'pts') {
+    if (+val === m.pts[2]) { m.step = 1; snd('select'); bidboxEnter = true; save(); render(); }
+    else { snd('error'); toast('Recomptez : As = 4, Roi = 3, Dame = 2, Valet = 1. Le bouton « Conseil » vous aide.', 3400); }
+  } else if (what === 'side') {
+    if (+val !== m.side) { snd('error'); toast('Regardez le total : c\'est le camp qui a le plus de points qui joue.', 3400); return; }
+    snd('select');
+    if (m.side === 0) {
+      m.step = 2; bidboxEnter = true; save(); render();
+      toast(`Votre camp a le plus de points, et vous en avez plus que ${nameOf(0)} : vous êtes déclarant. ${nameOf(0)} étale son jeu, c'est le mort.`, 4800);
+    } else setMiniContract(LC.miniAdvice(g.hands, m.declarer));
+  } else if (what === 'den') { m.den = val; snd('select'); render(); }
+  else if (what === 'man') { m.manche = val === '1'; snd('select'); render(); }
+  else if (what === 'ok') {
+    const adv = LC.miniAdvice(g.hands, m.declarer), level = LC.miniLevel(m.den, m.manche), mine = { level, den: m.den, dbl: 0, declarer: m.declarer };
+    if (adv.level === level && adv.den === m.den) { setMiniContract(mine); return; }
+    modal(`<h2>Le cours conseille plutôt ${callHTML(adv.level + adv.den, true)}</h2><p>${miniReason(adv)}</p>
+      <div class="btns"><button class="btn primary" data-m="adv">Jouer ${callHTML(adv.level + adv.den, true)}</button><button class="btn" data-m="mine">Garder ${callHTML(level + m.den, true)}</button></div>`,
+    v => { if (v === 'adv') setMiniContract(adv); else if (v === 'mine') setMiniContract(mine); });
+  }
+}
+function miniReason(adv) {
+  const fit = adv.den === 'N' ? 'Votre camp n\'a pas 8 cartes à cœur ou à pique : on joue à Sans-Atout.' : `Votre camp a ${adv.trumps} cartes à ${LC.NOM[B.DEN_SUIT[adv.den]]} : c'est l'atout.`;
+  return `${fit} Avec ${adv.total} points, ${adv.manche ? 'on peut jouer la manche (25 points ou plus)' : 'on reste en partielle (moins de 25 points)'}.`;
+}
+function miniHint() {
+  const g = G.game, m = g.mini;
+  let body;
+  if (m.step === 0) {
+    const detail = [0, 1, 2, 3].map(s => {
+      const pt = B.ranksIn(g.hands[2], s).filter(r => r >= 9).map(r => ({ 12: 'As 4', 11: 'Roi 3', 10: 'Dame 2', 9: 'Valet 1' })[r]);
+      return pt.length ? `${su(s)} ${pt.join(' + ')}` : '';
+    }).filter(Boolean).join('<br>');
+    body = `<h2>Comptez vos honneurs</h2><p>${detail || 'Vous n\'avez aucun honneur.'}</p><p>Total : <b>${m.pts[2]} points H</b>.</p>`;
+  } else if (m.step === 1) body = `<h2>Additionnez les deux camps</h2><p>Nord-Sud : ${m.pts[0]} + ${m.pts[2]} = <b>${m.ns}</b>.<br>Est-Ouest : ${m.pts[1]} + ${m.pts[3]} = <b>${m.eo}</b>.</p><p>Le camp qui a le plus de points joue le contrat.</p>`;
+  else { const adv = LC.miniAdvice(g.hands, m.declarer); body = `<h2>Conseil : ${callHTML(adv.level + adv.den, true)}</h2><p>${miniReason(adv)}</p>`; }
+  modal(`${body}<div class="btns"><button class="btn primary" data-m="no">Compris</button></div>`);
+}
+function finishMini() {
+  const g = G.game, p = g.play, ct = g.contract, side = B.sideOf(ct.declarer), tricks = p.won[side], made = tricks >= ct.level + 6;
+  const ok = side === 0 ? made : !made, don = LP().donnes;
+  g.result = { mini: true, ok, tricks, made, ns: ok ? 1 : -1 };
+  g.phase = 'end';
+  g.recorded = true;
+  don[g.learn.key] = ok || don[g.learn.key] === 'ok' ? 'ok' : 'ko';
+  save();
+  render();
+  snd(ok ? 'success' : 'fail');
+  say(ok ? 'Bravo !' : 'Dommage.');
+  if (ok && anim()) confetti();
+}
+function miniEndHTML() {
+  const g = G.game, r = g.result, ct = g.contract, need = ct.level + 6, ns = B.sideOf(ct.declarer) === 0;
+  const pa = perso(0), op = perso(1);
+  const line = (q, txt, who) => `<div class="quip">${B.avatarSVG(q)}<div><b>${q.name}</b> <small>${who}</small><br>« ${txt} »</div></div>`;
+  ensureAnalysis();
+  return `<div class="end"><div class="box">
+    <div class="res ${r.ok ? 'ok' : 'ko'}">${r.ok ? (ns ? 'Contrat réussi !' : 'Bravo, le contrat adverse chute !') : (ns ? `Chute de ${need - r.tricks}` : 'Les adversaires réussissent leur contrat')}</div>
+    <div class="score">${contractHTML(ct)} joué par ${nameOf(ct.declarer)} : <b>${plural(r.tricks, 'pli')}</b>, il en fallait ${need}.</div>
+    <div class="quips">${line(pa, r.ok ? pa.avecGagne : pa.avecPerd, 'votre partenaire')}${line(op, r.ok ? op.perd : op.gagne, 'adversaire')}</div>
+    <button class="btn green mi-comment" data-act="comment">${ICONS.book}Lire le commentaire de la donne</button>
+    <div class="an-status">${anStatusHTML()}</div>
+    <div class="btns"><button class="btn primary" data-act="learn-next">Donne suivante</button>
+      <button class="btn" data-act="replay">Rejouer cette donne</button>
+      <button class="btn" data-act="undo" ${g.undo.length ? '' : 'disabled'}>${ICONS.undo}Annuler la dernière carte</button></div>
+  </div></div>`;
+}
+
+/* --- les pages --- */
+function renderApprendre() {
+  const themes = LC.THEMES.map(t => { const p = groupProgress('mini', t.id); return `<button class="ld-row" data-act="lm:${t.id}"><span class="ld-txt"><b>${t.titre}</b><small>${t.resume}</small></span>${chip(p.ok, p.n)}<i>›</i></button>`; }).join('');
+  const chaps = LC.CHAPITRES.filter(c => { const p = groupProgress('cours', c.id); return p.n && p.ok === p.n; }).length;
+  const comm = groupProgress('comm', 'comm');
+  $app.innerHTML = `<div class="page"><div class="inner">
+    <button class="btn back" data-act="go:home">← Accueil</button>
+    <h1>Apprendre</h1>
+    <h2>Mini-bridge <small>sans enchères, pour découvrir le jeu : on compte les points, et on joue</small></h2>
+    <div class="ld-list">${themes}</div>
+    <h2>Le cours pas à pas <small>chaque chapitre reprend une fiche du cours, avec des donnes pour s'exercer</small></h2>
+    <div class="ld-list"><button class="ld-row" data-act="go:cours"><span class="ld-txt"><b>${LC.CHAPITRES.length} chapitres</b><small>Des premiers points jusqu'au contre d'appel</small></span>${chip(chaps, LC.CHAPITRES.length)}<i>›</i></button></div>
+    <h2>Donnes commentées <small>jouez la donne, puis lisez l'explication de chaque enchère et le plan de jeu</small></h2>
+    <div class="ld-list"><button class="ld-row" data-act="go:comm"><span class="ld-txt"><b>${comm.n} donnes</b><small>De l'initiation au niveau confirmé</small></span>${chip(comm.ok, comm.n)}<i>›</i></button></div>
+    <h2>Aussi</h2>
+    <div class="ld-list"><button class="ld-row" data-act="go:missions"><span class="ld-txt"><b>★ Les missions</b><small>Faire les plis, ou les empêcher</small></span><i>›</i></button>
+      <button class="ld-row" data-act="go:fiches"><span class="ld-txt"><b>Les fiches du cours</b><small>Toutes les fiches, en gros caractères</small></span><i>›</i></button></div>
+  </div></div>`;
+}
+function renderTheme() {
+  const t = LC.theme(learnView.theme), lu = LP().lu, p = groupProgress('mini', t.id);
+  const nl = t.lecons.filter(l => lu[t.id + ':' + l.id]).length;
+  $app.innerHTML = `<div class="page"><div class="inner">
+    <button class="btn back" data-act="go:apprendre">← Apprendre</button>
+    <h1>${t.titre}</h1><p>${t.resume}</p>
+    <h2>Leçons ${chip(nl, t.lecons.length)}</h2>
+    <div class="ld-list">${t.lecons.map(l => `<button class="ld-row" data-act="lecon:${t.id}:${l.id}">${stIcon(lu[t.id + ':' + l.id] ? 'ok' : '')}<span class="ld-txt"><b>${l.titre}</b><small>${l.resume}</small></span><i>›</i></button>`).join('')}</div>
+    <h2>Donnes ${chip(p.ok, p.n)}</h2>
+    <div class="ld-list">${dealRows('mini', t.id)}</div>
+  </div></div>`;
+}
+function renderLecon() {
+  const t = LC.theme(learnView.theme), l = t.lecons.find(x => x.id === learnView.lecon);
+  $app.innerHTML = `<div class="page"><div class="inner">
+    <button class="btn back" data-act="lm:${t.id}">← ${t.titre}</button>
+    <h1>${l.titre}</h1>
+    ${l.corps.map(([a, b]) => `<div class="lc-bloc"><b>${a}</b><p>${rich(b)}</p></div>`).join('')}
+    <div class="an-btns"><button class="btn primary" data-act="lecon-ok">J'ai compris</button></div>
+  </div></div>`;
+}
+function renderCours() {
+  const rows = LC.CHAPITRES.map((c, i) => {
+    const p = groupProgress('cours', c.id), st = p.n && p.ok === p.n ? 'ok' : p.any ? 'enc' : '';
+    return `<button class="ld-row" data-act="chap:${c.id}">${stIcon(st)}<span class="ld-txt"><b>Chapitre ${i + 1} : ${rich(c.titre)}</b></span>${chip(p.ok, p.n)}<i>›</i></button>`;
+  }).join('');
+  const cur = LC.CHAPITRES.find(c => { const p = groupProgress('cours', c.id); return p.ok < p.n; });
+  $app.innerHTML = `<div class="page"><div class="inner">
+    <button class="btn back" data-act="go:apprendre">← Apprendre</button>
+    <h1>Le cours pas à pas</h1>
+    <p>Chaque chapitre rappelle l'essentiel, ouvre la fiche du cours et propose des donnes choisies pour s'exercer. Dans les chapitres d'enchères, l'appli vous prévient si une enchère s'écarte du cours.</p>
+    ${cur ? `<div class="an-btns"><button class="btn green" data-act="chap:${cur.id}">Continuer : ${rich(cur.titre)}</button></div>` : ''}
+    <div class="ld-list">${rows}</div>
+  </div></div>`;
+}
+function renderChapitre() {
+  const c = LC.chapitre(learnView.chap), n = LC.CHAPITRES.indexOf(c) + 1, p = groupProgress('cours', c.id);
+  $app.innerHTML = `<div class="page"><div class="inner">
+    <button class="btn back" data-act="go:cours">← Les chapitres</button>
+    <h1>Chapitre ${n} : ${rich(c.titre)}</h1>
+    <h2>L'essentiel</h2>
+    <ul class="lc-points">${c.points.map(x => `<li>${rich(x)}</li>`).join('')}</ul>
+    <div class="fiche-list">${c.fiches.map(ficheBtn).join('')}</div>
+    <h2>Donnes ${chip(p.ok, p.n)}</h2>
+    <div class="ld-list">${dealRows('cours', c.id)}</div>
+  </div></div>`;
+}
+function renderComm() {
+  const list = LC.list('comm'), don = LP().donnes, f = learnView.filtre, names = Object.fromEntries(LC.NIVEAUX);
+  const seg2 = [['tout', 'Toutes']].concat(LC.NIVEAUX).map(([k, l]) => `<button class="${f === k ? 'on' : ''}" data-act="comm-f:${k}">${l}</button>`).join('');
+  const rows = list.map((x, i) => [x, i]).filter(([x]) => f === 'tout' || x[1] === f).map(([x, i]) => `<button class="ld-row" data-act="ld:comm:comm:${i}">${stIcon(don[ldKey('comm', 'comm', i)])}
+    <span class="ld-txt"><b>Donne n° ${i + 1}</b><small>${rich(x[2])}</small></span><span class="ld-niv ${x[1]}">${names[x[1]]}</span><i>›</i></button>`).join('');
+  $app.innerHTML = `<div class="page"><div class="inner">
+    <button class="btn back" data-act="go:apprendre">← Apprendre</button>
+    <h1>Donnes commentées</h1>
+    <p>Jouez la donne en entier. À la fin, le commentaire explique chaque enchère, le plan de jeu et l'entame.</p>
+    <div class="seg comm-f">${seg2}</div>
+    <div class="ld-list">${rows}</div>
+  </div></div>`;
+}
+function renderComment() {
+  const g = G.game, c = LC.comment(g), ct = g.contract, h = g.hands;
+  const hbox = (s, cls2) => `<div class="h ${cls2}"><div class="nm">${seatName(s)} <span class="pt">${c.pts[s]} H</span></div>${handText(h[s])}</div>`;
+  const bids = c.bids.map(b => {
+    const pts = b.m ? B.ptsText(b.m) : '';
+    return `<li><div class="cm-h"><b>${seatName(b.seat)}</b> ${callHTML(b.call, true)}${b.m && b.m.name && b.m.name !== 'Passe' ? ' : ' + rich(b.m.name) : ''}</div>
+      ${pts ? `<div class="cm-p">${pts}</div>` : ''}${b.m && b.m.text ? `<div class="cm-t">${rich(b.m.text)}</div>` : ''}
+      ${b.m && b.m.fiche && FICHE_PAGES[b.m.fiche] ? `<button class="btn small cm-f" data-fiche="${b.m.fiche}">${ICONS.book}Fiche ${b.m.fiche}</button>` : ''}</li>`;
+  }).join('');
+  const adv = g.mini ? LC.miniAdvice(h, g.mini.declarer) : null;
+  $app.innerHTML = `<div class="page"><div class="inner analyse">
+    <button class="btn back" data-act="resume">${g.phase === 'end' ? '← Retour à la donne' : 'Jouer la carte →'}</button>
+    <h1>Commentaire</h1><p class="an-res">${g.board}</p>
+    <h2>Les mains</h2>
+    <div class="compass">${hbox(0, 'hn')}${hbox(3, 'hw')}<div class="mid">Nord-Sud <b>${c.ns}</b> H<br>Est-Ouest <b>${c.eo}</b> H</div>${hbox(1, 'he')}${hbox(2, 'hs')}</div>
+    ${g.mini ? `<h2>Le choix du contrat</h2><p>${miniReason(adv)}</p><p>Contrat conseillé : <b>${contractHTML(adv)}</b>.${ct ? ` Contrat joué : <b>${contractHTML(ct)}</b>.` : ''}</p>`
+      : `<h2>Les enchères</h2><ol class="cm-list">${bids}</ol>`}
+    ${ct ? `<h2>Le contrat</h2><p><b>${contractHTML(ct)}</b> joué par ${nameOf(ct.declarer)} : il faut ${ct.level + 6} plis.</p>
+      <h2>Le plan de jeu <small>première estimation, en regardant les deux mains du camp</small></h2>
+      <ul class="lc-points">${c.plan.map(x => `<li>${rich(x)}</li>`).join('')}</ul>
+      ${ficheBtn('09')}
+      <h2>L'entame</h2><p>${seatName(c.lead.seat)} ${c.lead.seat === 2 ? 'entamez' : 'entame'} ${cardTxtHTML(c.lead.card)}. ${rich(c.lead.reason)}</p>` : ''}
+    <div class="an-btns">${g.phase === 'end' && ct ? `<button class="btn gold" data-act="analyse">★ La meilleure façon de jouer</button>` : ''}
+      <button class="btn primary" data-act="learn-next">Donne suivante</button></div>
+  </div></div>`;
+}
 function userControls(seat) {
   const g = G.game;
   if (seat === 2) return true;
@@ -422,10 +713,12 @@ function finishAuction() {
   toast(msg, 4200);
   say('Contrat : ' + B.sound.callWords(ct.level + ct.den) + (ct.dbl === 2 ? ' surcontré' : ct.dbl === 1 ? ' contré' : '') + ', joué par ' + nameOf(decl) + '.');
   save();
+  if (g.learn && g.learn.kind === 'cours' && LC.chapitre(g.learn.group).type === 'bid') { afterBids(); return; }
   step();
 }
 function finishPlay() {
   if (G.game.mission) { finishMission(); return; }
+  if (G.game.mini) { finishMini(); return; }
   const g = G.game, p = g.play, ct = g.contract;
   const tricks = p.won[B.sideOf(ct.declarer)];
   const sc = B.score(ct, tricks, g.vul);
@@ -445,6 +738,7 @@ function record() {
   const g = G.game;
   if (g.recorded) return;
   g.recorded = true;
+  if (g.learn) { learnResult(); return; }    // les donnes d'apprentissage ne comptent pas dans « Mes résultats »
   const h = G.stats.history;
   const ct = g.contract;
   h.push({
@@ -479,7 +773,7 @@ function submitCall(call, force) {
   const g = G.game;
   if (g.phase !== 'bidding' || (g.dealer + g.auction.length) % 4 !== 2) return;
   if (!B.isLegal(call, g.auction, g.dealer)) return;
-  if (!force && G.settings.checkBids) {
+  if (!force && (G.settings.checkBids || (g.learn && g.learn.kind === 'cours'))) {
     const h = B.decide(g.hands[2], g.auction, g.dealer);
     if (h.sure && h.call !== call) { deviation(h, call); return; }
   }
@@ -545,6 +839,7 @@ function undo() {
 function hint() {
   const g = G.game;
   if (!g) return;
+  if (g.phase === 'mini') { miniHint(); return; }
   if (g.phase === 'bidding') {
     if ((g.dealer + g.auction.length) % 4 !== 2) { toast('Attendez votre tour pour demander un conseil.'); return; }
     const h = B.decide(g.hands[2], g.auction, g.dealer);
@@ -626,6 +921,7 @@ function menu() {
   modal(`<h2>Menu</h2><div class="menu-list">
     <button class="btn primary" data-m="new">Nouvelle donne</button>
     ${inGame ? `<button class="btn" data-m="replay">${G.game.mission ? 'Recommencer la mission' : 'Recommencer cette donne'}</button>` : ''}
+    <button class="btn" data-m="apprendre">Apprendre</button>
     <button class="btn" data-m="missions">Les missions</button>
     <button class="btn" data-m="fiches">Les fiches du cours</button>
     <button class="btn" data-m="stats">Mes résultats</button>
@@ -641,11 +937,14 @@ function menu() {
 }
 function confirmReplay() {
   if (G.game && G.game.mission) { startMission(G.game.mission); return; }
+  if (G.game && G.game.learn) { const l = G.game.learn; startLearn(l.kind, l.group, l.i); return; }
   modal(`<h2>Recommencer cette donne ?</h2><p>Les mêmes cartes seront redistribuées et les enchères reprendront du début.</p>
     <div class="btns"><button class="btn primary" data-m="yes">Recommencer</button><button class="btn" data-m="no">Annuler</button></div>`, v => { if (v === 'yes') newDeal(true); });
 }
+const clearToast = () => { const t = document.querySelector('.toast'); if (t) t.remove(); };
 function go(s) {
   cancelTimers();
+  clearToast();
   thinking = -1; holdTrick = false;
   screen = s;
   render();
@@ -662,6 +961,13 @@ function render() {
   if (screen === 'help') return renderHelp();
   if (screen === 'missions') return renderMissions();
   if (screen === 'fiches') return renderFiches();
+  if (screen === 'apprendre') return renderApprendre();
+  if (screen === 'lm') return renderTheme();
+  if (screen === 'lecon') return renderLecon();
+  if (screen === 'cours') return renderCours();
+  if (screen === 'chapitre') return renderChapitre();
+  if (screen === 'comm') return renderComm();
+  if (screen === 'comment' && G.game) return renderComment();
   if (screen === 'analyse' && G.game) return renderAnalysis();
   if (screen === 'revue' && G.game && AN.res && AN.res.best !== undefined) return renderReview();
   if (!G.game) { screen = 'home'; return renderHome(); }
@@ -676,13 +982,16 @@ function renderHome() {
     <h1>Le Bridge de Marianne</h1>
     <div class="sub">Jouez contre trois robots qui annoncent comme dans votre cours.</div>
     <div class="menu-list">
-      ${resume ? `<button class="btn primary" data-act="resume">${g.mission ? 'Reprendre la mission : ' + g.board : 'Reprendre la donne n° ' + g.board}</button>` : ''}
+      ${resume ? `<button class="btn primary" data-act="resume">${g.mission ? 'Reprendre la mission : ' + g.board : g.learn ? 'Reprendre : ' + g.board : 'Reprendre la donne n° ' + g.board}</button>` : ''}
       <button class="btn ${resume ? '' : 'primary'}" data-act="new">Nouvelle donne</button>
+      <button class="btn green" data-act="go:apprendre">${ICONS.cap}Apprendre</button>
       <button class="btn gold" data-act="go:missions">★ Les missions <small>${B.MISSIONS.filter(m => MP().done[m.id]).length} / ${B.MISSIONS.length}</small></button>
-      <button class="btn" data-act="go:fiches">Les fiches du cours</button>
-      <button class="btn" data-act="go:stats">Mes résultats</button>
-      <button class="btn" data-act="go:help">Comment jouer</button>
-      <button class="btn" data-act="go:settings">Réglages</button>
+      <div class="home-mini">
+        <button class="btn" data-act="go:fiches">Les fiches</button>
+        <button class="btn" data-act="go:stats">Mes résultats</button>
+        <button class="btn" data-act="go:help">Comment jouer</button>
+        <button class="btn" data-act="go:settings">Réglages</button>
+      </div>
     </div></div></div>`;
 }
 
@@ -698,7 +1007,7 @@ function renderGame() {
   const role = s => !g.contract || phase === 'bidding' ? '' : s === decl ? 'déclarant' : s === dummy ? 'mort' : 'défense';
   const tag = s => {
     const cls = `tag perso ${turn === s && phase !== 'end' ? 'turn' : ''}`;
-    const sub = SEATN[s] + (role(s) ? ' · ' + role(s) : s === 0 ? ' · partenaire' : '');
+    const sub = SEATN[s] + (phase === 'mini' && g.mini.step >= 1 ? ` · ${g.mini.pts[s]} pts` : role(s) ? ' · ' + role(s) : s === 0 ? ' · partenaire' : '');
     if (s === 2) return `<div class="${cls} me" data-me="1">${meAvatar()}<span class="nm"><b><span class="dot"></span>${P.name ? esc(P.name) : 'Vous'}</b><small>${sub}</small></span>${wlHTML(G.stats.me || { v: 0, d: 0 })}</div>`;
     return `<div class="${cls}" data-perso="${s}">${B.avatarSVG(perso(s))}<span class="nm"><b><span class="dot"></span>${perso(s).name}</b><small>${sub}</small></span>${wlHTML(wlOf(perso(s).name, s === 0))}</div>`;
   };
@@ -721,7 +1030,7 @@ function renderGame() {
   };
   // Nord
   let north;
-  const northVisible = phase === 'end' || (phase === 'play' && (B.sideOf(decl) === 0 || (dummy === 0 && dummyShown)));
+  const northVisible = phase === 'end' || (phase === 'play' && (B.sideOf(decl) === 0 || (dummy === 0 && dummyShown))) || (phase === 'mini' && g.mini.step >= 2 && g.mini.side === 0);
   if (northVisible) north = dummyHTML(phase === 'end' ? [] : hands[0], 0, 'cols', cardCls);
   else north = backsHTML(hands[0].length);
   // Est / Ouest
@@ -739,6 +1048,8 @@ function renderGame() {
   if (phase === 'bidding') {
     if (turn === 2 && !dealing) center = bidboxHTML();
     else if (thinking >= 0) center = `<div class="thinking">${nameOf(thinking)} réfléchit…</div>`;
+  } else if (phase === 'mini') {
+    center = miniBoxHTML();
   } else if (phase === 'play') {
     const shown = holdTrick ? p.tricks[p.tricks.length - 1].cards : p.trick;
     const w = holdTrick ? p.tricks[p.tricks.length - 1].winner : -1;
@@ -781,7 +1092,7 @@ function handRows(hand) {
   if (!telPortrait() || n < 7 || oneRow) return [h];
   // pendant les enchères sur un écran bas, une seule rangée : la boîte d'enchères garde des boutons assez grands
   const cs = getComputedStyle($app);
-  if (G.game.phase === 'bidding' && $app.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) < 680) return [h];
+  if (G.game.phase !== 'play' && $app.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) < 680) return [h];
   let cut = Math.ceil(n / 2), best = 99;
   for (let i = 1; i < n; i++) {
     if (B.suitOf(h[i]) === B.suitOf(h[i - 1])) continue;
@@ -834,8 +1145,9 @@ function panelHTML(status) {
   const vulNS = B.isVul(g.vul, 0), vulEW = B.isVul(g.vul, 1);
   const m = missionOf(g);
   let html = `<div class="scroll">
-    <div class="topline"><span class="boardno">${m ? 'Mission' : 'Donne n° ' + g.board}</span><button class="menu-btn" data-act="menu"><span class="bars"></span>Menu</button><button class="btn sheet-close" data-act="details">Fermer ✕</button></div>
+    <div class="topline"><span class="boardno ${g.learn ? 'small' : ''}">${m ? 'Mission' : boardLabel(g)}</span><button class="menu-btn" data-act="menu"><span class="bars"></span>Menu</button><button class="btn sheet-close" data-act="details">Fermer ✕</button></div>
     ${m ? `<div class="mission-box"><div class="mi-k">${PARCOURS[m.parcours]} ${stars(m.niveau)}</div><div class="mi-title">${m.titre}</div><p>${rich(m.histoire)}</p></div>`
+      : g.mini ? `<div class="mission-box"><div class="mi-k">Mini-bridge</div><div class="mi-title">${LC.theme(g.learn.group).titre}</div><p>${LC.theme(g.learn.group).resume}</p></div>`
       : `<div class="info">Donneur : <b>${seatName(g.dealer)}</b><br>
       Nord-Sud <span class="vul ${vulNS ? 'v' : 'nv'}">${vulNS ? 'vulnérables' : 'non vulnérables'}</span><br>
       Est-Ouest <span class="vul ${vulEW ? 'v' : 'nv'}">${vulEW ? 'vulnérables' : 'non vulnérables'}</span></div>`}`;
@@ -847,7 +1159,8 @@ function panelHTML(status) {
       ${m ? `<div class="goal mi-progress">Objectif : <b>${B.mission.goalOf(m)} pli${B.mission.goalOf(m) > 1 ? 's' : ''}</b> pour Nord-Sud dans cette fin de donne. Déjà faits : <b>${missionTricks(g)}</b>.</div>`
         : `<div class="goal">Il faut <b>${ct.level + 6} plis</b> au camp ${side === 0 ? 'Nord-Sud' : 'Est-Ouest'} (les défenseurs en veulent ${8 - ct.level}).</div>`}</div>`;
   }
-  if (m) html += `<div class="explain"><div class="t">${ICONS.hint} Besoin d'aide ?</div><div class="txt">Le bouton « Conseil » donne un indice et la bonne carte. Si une carte rend la mission impossible, l'appli vous prévient : « Annuler » permet de rejouer le coup.</div></div>`;
+  if (g.mini) html += `<div class="explain"><div class="t">${ICONS.hint} Besoin d'aide ?</div><div class="txt">Au mini-bridge, il n'y a pas d'enchères : on compte les points et on choisit le contrat. Le bouton « Conseil » vous guide à chaque étape.</div></div>`;
+  else if (m) html += `<div class="explain"><div class="t">${ICONS.hint} Besoin d'aide ?</div><div class="txt">Le bouton « Conseil » donne un indice et la bonne carte. Si une carte rend la mission impossible, l'appli vous prévient : « Annuler » permet de rejouer le coup.</div></div>`;
   else html += auctionHTML() + explainHTML();
   html += '</div>';
   // téléphone : une seule barre avec le message du coup, le contrat et les plis
@@ -855,7 +1168,7 @@ function panelHTML(status) {
     const ct = g.contract;
     const sum = m ? `<div class="sum">${contractHTML(ct)} par ${nameOf(ct.declarer)} · objectif <b>${missionTricks(g)} / ${B.mission.goalOf(m)}</b> plis</div>`
       : ct && g.phase !== 'bidding' ? `<div class="sum">${contractHTML(ct)} par ${nameOf(ct.declarer)} · Nord-Sud <b>${p.won[0]}</b> · Est-Ouest <b>${p.won[1]}</b></div>`
-      : `<div class="sum">Donne n° ${g.board} · Donneur : <b>${seatName(g.dealer)}</b></div>`;
+      : g.mini ? `<div class="sum">${g.board}</div>` : `<div class="sum">${boardLabel(g)} · Donneur : <b>${seatName(g.dealer)}</b></div>`;
     html += `<div class="bar ${status ? 'two' : ''}">${status || sum}<button class="menu-btn" data-act="menu"><span class="bars"></span>Menu</button>${status ? sum : ''}</div>`;
   }
   html += `<div class="actions">${actionsHTML()}</div>`;
@@ -908,6 +1221,7 @@ const ICONS = {
   cam: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.5"/></svg>',
   pic: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/></svg>',
   book: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 12h7M9 16h7"/></svg>',
+  cap: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11.5V16c0 1.5 3 3 6 3s6-1.5 6-3v-4.500M22 9v6"/></svg>',
   list: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 4v16M15 4v16"/></svg>',
 };
 function actionsHTML() {
@@ -915,7 +1229,8 @@ function actionsHTML() {
   const p = g.play;
   const canUndo = g.undo.length > 0;
   // téléphone : les enchères et leurs explications s'ouvrent par-dessus le tapis
-  const more = tel() ? `<button class="btn ${panelOpen ? 'on' : ''}" data-act="details">${ICONS.list}${g.mission ? 'Mission' : 'Enchères'}</button>` : '';
+  const more = tel() ? `<button class="btn ${panelOpen ? 'on' : ''}" data-act="details">${ICONS.list}${g.mission ? 'Mission' : g.mini ? 'Leçon' : 'Enchères'}</button>` : '';
+  if (g.phase === 'mini') return `<button class="btn gold" data-act="hint">${ICONS.hint}Conseil</button>${more}`;
   if (g.phase === 'bidding') return `<button class="btn gold" data-act="hint">${ICONS.hint}Conseil</button><button class="btn" data-act="undo" ${canUndo ? '' : 'disabled'}>${ICONS.undo}Annuler</button>${more}`;
   if (g.phase === 'play') {
     const canClaim = B.sideOf(p.declarer) === 0;
@@ -924,11 +1239,13 @@ function actionsHTML() {
       <button class="btn" data-act="claim" ${canClaim ? '' : 'disabled'}>${ICONS.claim}Réclamer</button>${more}`;
   }
   if (g.mission) return `<button class="btn primary" data-act="go:missions" style="grid-column:1/-1">Les missions</button>${more}`;
+  if (g.learn) return `<button class="btn primary" data-act="learn-next" style="grid-column:1/-1">Donne suivante</button>${more}`;
   return `<button class="btn primary" data-act="new" style="grid-column:1/-1">Donne suivante</button>${more}`;
 }
 
 function endScreenHTML() {
   if (G.game.mission) return missionEndHTML();
+  if (G.game.mini) return miniEndHTML();
   const g = G.game, r = g.result, ct = g.contract;
   let res, cls;
   if (r.passed) { res = 'Donne passée : personne n\'a ouvert.'; cls = ''; }
@@ -959,10 +1276,11 @@ function endScreenHTML() {
   }
   return `<div class="end"><div class="box">
     <div class="res ${cls}">${res}</div>${scoreTxt}${quip}
+    ${g.learn ? `<button class="btn green mi-comment" data-act="comment">${ICONS.book}Lire le commentaire de la donne</button>` : ''}
     <div class="an-status">${anStatusHTML()}</div>
-    <div class="compass">${hbox(0, 'hn')}${hbox(3, 'hw')}<div class="mid">Donne n° ${g.board}<br>Donneur : ${seatName(g.dealer)}</div>${hbox(1, 'he')}${hbox(2, 'hs')}</div>
+    <div class="compass">${hbox(0, 'hn')}${hbox(3, 'hw')}<div class="mid">${boardLabel(g)}<br>Donneur : ${seatName(g.dealer)}</div>${hbox(1, 'he')}${hbox(2, 'hs')}</div>
     ${tricks}
-    <div class="btns"><button class="btn primary" data-act="new">Donne suivante</button>
+    <div class="btns"><button class="btn primary" data-act="${g.learn ? 'learn-next' : 'new'}">Donne suivante</button>
       <button class="btn" data-act="replay">Rejouer cette donne</button>
       <button class="btn" data-act="undo" ${g.undo.length ? '' : 'disabled'}>${ICONS.undo}Annuler la dernière carte</button></div>
   </div></div>`;
@@ -1253,6 +1571,14 @@ function renderHelp() {
       <li>Quand votre camp joue le contrat, <b>vous jouez aussi les cartes du mort</b> (votre partenaire, en haut). Touchez directement la carte du mort que vous voulez jouer.</li>
       <li>Quand les adversaires jouent le contrat, le mort est étalé sur le côté après l'entame.</li>
     </ul>
+    <h2>Apprendre</h2>
+    <ul>
+      <li>Depuis l'accueil ou le Menu, touchez <b>« Apprendre »</b>.</li>
+      <li><b>Mini-bridge</b> : sans enchères. On compte ses points, on voit quel camp joue, puis on choisit le contrat.</li>
+      <li><b>Le cours pas à pas</b> : un chapitre par thème des fiches, avec l'essentiel, la fiche et des donnes choisies pour s'exercer.</li>
+      <li><b>Donnes commentées</b> : jouez la donne, puis lisez l'explication de chaque enchère, le plan de jeu et l'entame.</li>
+      <li>Une coche verte montre une donne réussie. Ces donnes ne comptent pas dans « Mes résultats ».</li>
+    </ul>
     <h2>Les missions</h2>
     <ul>
       <li>Depuis l'accueil, touchez <b>« ★ Les missions »</b> : ce sont des fins de donne avec un but, comme dans un jeu.</li>
@@ -1464,7 +1790,7 @@ function anStatusHTML() {
 function renderAnalysis() {
   const g = G.game, a = AN.res;
   const m = missionOf(g);
-  const head = `<button class="btn back" data-act="resume">← Retour ${m ? 'à la mission' : 'à la donne'}</button><h1>${m ? 'Analyse de la mission : ' + m.titre : 'Analyse de la donne n° ' + g.board}</h1>`;
+  const head = `<button class="btn back" data-act="resume">← Retour ${m ? 'à la mission' : 'à la donne'}</button><h1>${m ? 'Analyse de la mission : ' + m.titre : g.learn ? 'Analyse · ' + g.board : 'Analyse de la donne n° ' + g.board}</h1>`;
   if (!a) {
     $app.innerHTML = `<div class="page"><div class="inner analyse">${head}<div class="an-wait big">L'ordinateur analyse votre donne…<div class="an-bar"><b style="width:${AN.pct}%"></b></div></div></div></div>`;
     return;
@@ -1496,7 +1822,7 @@ function renderAnalysis() {
   $app.innerHTML = `<div class="page"><div class="inner analyse">${head}
     <div class="an-res">${m ? `${r.ok ? 'Mission réussie' : 'Mission ratée'} : Nord-Sud a fait ${plural(missionTricks(g), 'pli')}, il en fallait ${B.mission.goalOf(m)}.`
       : ct ? `${contractHTML(ct)} joué par ${nameOf(ct.declarer)} : ${plural(r.tricks, 'pli')}${r.made ? ', contrat réussi' : ', contrat chuté'}.` : 'Donne passée.'}</div>
-    ${m ? `<div class="mi-lesson"><b>La leçon :</b> ${rich(m.lecon)}</div>` : auctionGridHTML(g, a.bids.map(b => b.i))}
+    ${m ? `<div class="mi-lesson"><b>La leçon :</b> ${rich(m.lecon)}</div>` : g.mini ? '' : auctionGridHTML(g, a.bids.map(b => b.i))}
     <h2>Ce qui n'allait pas</h2>
     ${items.length ? `<ol class="an-list">${items.join('')}</ol>` : `<p class="an-ok">${m ? 'Rien à redire : vous avez joué les bonnes cartes. Bravo !' : 'Rien à redire : vos enchères et vos cartes suivent le cours. Bravo !'}</p>`}
     ${a.best ? `<h2>Pour bien comprendre</h2><p>${compare}</p>
@@ -1505,7 +1831,7 @@ function renderAnalysis() {
       <button class="btn gold" data-act="revue:best">★ Voir la meilleure façon de jouer</button>
     </div>` : ''}
     <div class="an-btns">${m ? '<button class="btn green" data-act="replay">↻ Recommencer la mission</button><button class="btn" data-act="go:missions">Toutes les missions</button>'
-      : '<button class="btn green" data-act="replay">↻ Rejouer cette donne</button><button class="btn" data-act="new">Donne suivante</button>'}</div>
+      : `<button class="btn green" data-act="replay">↻ Rejouer cette donne</button><button class="btn" data-act="${g.learn ? 'learn-next' : 'new'}">Donne suivante</button>`}</div>
     <p class="an-note">${m ? 'Dans les missions, l\'ordinateur calcule exactement chaque coup en voyant toutes les cartes.' : 'Pour les 8 derniers plis, l\'ordinateur calcule exactement en voyant toutes les cartes. Avant, il suit les conseils du cours, comme le bouton « Conseil ».'}</p>
   </div></div>`;
 }
@@ -1608,7 +1934,7 @@ $app.addEventListener('click', e => {
     return;
   }
   const act = a.dataset.act;
-  const [k, v, w] = act.split(':');
+  const [k, v, w, x] = act.split(':');
   if (k === 'new') newDeal(false);
   else if (k === 'replay') confirmReplay();
   else if (k === 'resume') go('game');
@@ -1628,6 +1954,15 @@ $app.addEventListener('click', e => {
   else if (k === 'sel') { G.game.selCall = +v; save(); render(); }
   else if (k === 'details') { panelOpen = !panelOpen; render(); }
   else if (k === 'mission') startMission(v);
+  else if (k === 'lm') { learnView.theme = v; screen = 'lm'; render(); }
+  else if (k === 'lecon') { learnView.theme = v; learnView.lecon = w; screen = 'lecon'; render(); }
+  else if (k === 'lecon-ok') { LP().lu[learnView.theme + ':' + learnView.lecon] = true; save(); screen = 'lm'; render(); }
+  else if (k === 'chap') { learnView.chap = v; screen = 'chapitre'; render(); }
+  else if (k === 'ld') startLearn(v, w, +x);
+  else if (k === 'comm-f') { learnView.filtre = v; render(); }
+  else if (k === 'comment') { cancelTimers(); clearToast(); screen = 'comment'; render(); }
+  else if (k === 'learn-next') learnNext();
+  else if (k === 'mini') miniAct(v, w);
   else if (k === 'set') {
     const val = w === 'true' ? true : w === 'false' ? false : w;
     G.settings[v] = val;
