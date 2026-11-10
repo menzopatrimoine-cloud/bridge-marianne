@@ -743,3 +743,13 @@ body.tel .on-empty { width: 58px; height: 58px; }
   .home .home-mini { gap: 8px; }
   .home .home-mini .btn { min-height: 46px; font-size: 18px; }
 }
+
+/* Fiches en PDF */
+.fiche-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: stretch; }
+a.pdf-btn { text-decoration: none; gap: 8px; }
+.fiche-list .pdf-btn { font-size: 19px; padding: 6px 16px; }
+.pdf-all .pdf-btn { width: 100%; min-height: 66px; font-size: 23px; }
+.pdf-how { color: var(--muted); font-size: 18px; }
+.btn.pdf-btn .ico { width: 24px; height: 24px; }
+body.tel .fiche-view .bar { flex-wrap: wrap; }
+body.tel .fiche-view .ttl { flex-basis: 100%; }

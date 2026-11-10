@@ -128,7 +128,13 @@ const PERSOS = [
     bio: 'Le créateur de cette application. Il l\'a imaginée pour que Marianne puisse jouer au bridge comme dans son cours, à toute heure et avec tout ce petit monde.',
     gagne: 'Je n\'ai pas triché, promis : c\'est le robot qui distribue !', perd: 'Bravo ! Je crois que je vais devoir mettre mon jeu à jour.',
     avecGagne: 'Bravo, partenaire ! Je mets cette donne dans la prochaine version.', avecPerd: 'Ce n\'est pas une erreur, c\'est un bug. Je corrige ça tout de suite.',
-    av: { bg: '#c8d7f0', skin: '#ecc4a6', hair: '#3a2c22', style: 'court', outfit: 'col-roule', cloth: '#1d2b4f', tablette: true } },
+    av: { bg: '#f2dcb0', skin: '#f1cdb6', hair: '#2f2620', style: 'ondule', outfit: 'polo', cloth: '#c6daee', accent: '#dfeaf5', glasses: 'rond', glassColor: '#55705c', sourcils: '#2f2620', barbe3j: true, tablette: true } },
+  { name: 'Tao', title: 'le chihuahua de Marianne, mascotte de l\'Hippocampe',
+    hello: 'Ouaf ! Moi, c\'est Tao, le chihuahua de Marianne et la mascotte de l\'Hippocampe. Je veux bien jouer, mais d\'abord : vous avez une croquette ?',
+    bio: 'Le chihuahua de Marianne, mascotte canine du club de bridge de Villefranche-sur-Mer. Toujours prêt pour une croquette ou une friandise.',
+    gagne: 'Ouaf ! Contrat gagné : ça mérite une croquette.', perd: 'Ouaf… Bien joué. Vous n\'auriez pas une friandise pour me consoler ?',
+    avecGagne: 'Ouaf ouaf ! Bravo, partenaire. On partage la friandise ?', avecPerd: 'Pas grave ! Une petite croquette et ça repart.',
+    av: { bg: '#bfe3dc', chien: true } },
 ];
 
 const BROW = 'rgba(90, 80, 70, .75)';
@@ -140,6 +146,9 @@ function hairFront(a) {
     case 'chauve':
       return `<path d="M28.5 50 C27 38 30 31 35.5 28.5 C33 35 33 42 33.5 50Z" ${f}/><path d="M71.5 50 C73 38 70 31 64.5 28.5 C67 35 67 42 66.5 50Z" ${f}/>
         <ellipse cx="43" cy="28" rx="7" ry="3" fill="#fff" opacity=".28"/>`;
+    case 'ondule':
+      return `<path d="M28.5 48 C26.5 37 28.5 28 35 24 C41 20 59 20 65 24 C71.5 28 73.5 37 71.5 48 C70.5 41 69 36 65.5 32.5 C60 29.5 40 29.5 34.5 32.5 C31 36 29.5 41 28.5 48Z" ${f}/>`
+        + [[40.5, 24, 3.8], [45.5, 22, 4.2], [51, 21, 4.5], [56.5, 22, 4.2], [61, 24.5, 3.6]].map(([x, y, r]) => `<circle cx="${x}" cy="${y}" r="${r}" ${f}/>`).join('');
     case 'court':
       return `<path d="M28.5 46 C26 27 37 20 50 20 C63 20 74 27 71.5 46 C70 37 66 31 60 29.5 C52 31.5 43 30.5 36 31.5 C32 35 29.5 40 28.5 46Z" ${f}/>`;
     case 'raie':
@@ -216,14 +225,16 @@ function face(a) {
   // yeux, sourcils, petites rides : des visages souriants et bienveillants
   s += `<ellipse cx="42" cy="48" rx="2.3" ry="2.7" fill="#2b2622"/><ellipse cx="58" cy="48" rx="2.3" ry="2.7" fill="#2b2622"/>
     <circle cx="42.8" cy="47" r=".8" fill="#fff"/><circle cx="58.8" cy="47" r=".8" fill="#fff"/>
-    <path d="M37.5 42.5 Q42 39.8 46.3 42" stroke="${BROW}" stroke-width="2" fill="none" stroke-linecap="round"/>
-    <path d="M53.7 42 Q58 39.8 62.5 42.5" stroke="${BROW}" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <path d="M37.5 42.5 Q42 39.8 46.3 42" stroke="${a.sourcils || BROW}" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <path d="M53.7 42 Q58 39.8 62.5 42.5" stroke="${a.sourcils || BROW}" stroke-width="2" fill="none" stroke-linecap="round"/>
     <path d="M35 46.5 l-2.6 -1.1 M35 49.2 l-2.6 .9 M65 46.5 l2.6 -1.1 M65 49.2 l2.6 .9" stroke="${LINE}" stroke-width="1" stroke-linecap="round"/>
     <path d="M50 49.5 Q47.3 56 50.6 57.2" stroke="rgba(0,0,0,.25)" stroke-width="1.6" fill="none" stroke-linecap="round"/>
     <circle cx="37.5" cy="56" r="3.8" fill="#ee8270" opacity=".32"/><circle cx="62.5" cy="56" r="3.8" fill="#ee8270" opacity=".32"/>
     <path d="M39.5 57.5 Q40.5 62 43 64 M60.5 57.5 Q59.5 62 57 64" stroke="${LINE}" stroke-width="1" fill="none"/>`;
   if (a.forehead) s += `<path d="M43 33.5 Q50 32 57 33.5 M44.5 36.5 Q50 35.3 55.5 36.5" stroke="${LINE}" stroke-width="1" fill="none"/>`;
   if (a.beard) s += `<path d="M28.5 50 C29.5 67 39 75.5 50 75.5 C61 75.5 70.5 67 71.5 50 C68.5 58 63 61.5 57 61 Q50 59 43 61 C37 61.5 31.5 58 28.5 50Z" fill="${a.hair}" stroke="rgba(0,0,0,.06)"/>`;
+  // barbe de trois jours
+  if (a.barbe3j) s += '<path d="M31 56 C34 65 42 70.2 50 70.2 C58 70.2 66 65 69 56 C65 62 60.5 63.5 57 62.5 Q50 60.3 43 62.5 C39.5 63.5 35 62 31 56Z" fill="rgba(50,40,35,.2)"/><path d="M42 59 Q50 55 58 59 Q50 58.4 42 59Z" fill="rgba(50,40,35,.3)"/>';
   if (a.lips) s += `<path d="M44 61 Q47 59.6 50 60.6 Q53 59.6 56 61 Q50 67.5 44 61Z" fill="#c8323c"/>`;
   else s += `<path d="M43.8 61 Q50 66.8 56.2 61" stroke="#8a3b2e" stroke-width="2" fill="none" stroke-linecap="round"/>`;
   if (a.mustache === 'large' || a.beard) s += `<path d="M40.5 59.5 Q45.5 55 50 57.8 Q54.5 55 59.5 59.5 Q54.5 61.5 50 59.6 Q45.5 61.5 40.5 59.5Z" fill="${a.hair}" stroke="rgba(0,0,0,.08)" stroke-width=".6"/>`;
@@ -298,8 +309,28 @@ function collar(a) {
   return `<path d="M40.5 65 H59.5 L60.5 78 Q50 82.5 39.5 78Z" fill="${a.cloth}"/><path d="M40.8 69.5 H59.2 M40.6 73.5 H59.4" stroke="rgba(255,255,255,.14)" stroke-width="1.2"/>`;
 }
 // le visage complet, dans un cercle (découpé en CSS)
+// Tao, chihuahua noir, blanc et feu : liste blanche sur le front, taches feu au-dessus des yeux
+function dogSVG(a, cls) {
+  const ear = (flip) => `<g ${flip ? 'transform="translate(100 0) scale(-1 1)"' : ''}><path d="M28 45 C18 31 16 16 20 9 C32 12 42 21 47 30Z" fill="#1c1a1c"/><path d="M27 35 C23 28 22 20 24 15 C30 18 36 24 39.500 30Z" fill="#c98b4b"/></g>`;
+  const eye = x => `<circle cx="${x}" cy="49" r="5.4" fill="#3a2418"/><circle cx="${x}" cy="49" r="3.6" fill="#120b07"/><circle cx="${x + 1.6}" cy="47.2" r="1.5" fill="#fff"/>`;
+  const brow = (x, r) => `<ellipse cx="${x}" cy="41" rx="5.200" ry="3.400" transform="rotate(${r} ${x} 41)" fill="#d99a58"/>`;
+  const whisk = '<path d="M38 62 L25 59 M38 65 L26 66 M62 62 L75 59 M62 65 L74 66" stroke="rgba(60,60,60,.45)" stroke-width=".8"/>';
+  const bone = '<g transform="translate(70 88) rotate(-24)" fill="#f4e3c0" stroke="#c9a877" stroke-width=".7"><rect x="-7" y="-2" width="14" height="4" rx="1"/><circle cx="-7" cy="-2.200" r="2.600"/><circle cx="-7" cy="2.200" r="2.600"/><circle cx="7" cy="-2.200" r="2.600"/><circle cx="7" cy="2.200" r="2.600"/></g>';
+  return `<svg class="av ${cls || ''}" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="50" fill="${a.bg}"/>
+    <path d="M16 104 C18 86 33 77 50 77 C67 77 82 86 84 104Z" fill="#f1eee6" stroke="#dcd8cc" stroke-width="1"/>
+    <path d="M34 75 Q50 84 66 75 L66 80 Q50 89 34 80Z" fill="#c9313a"/><circle cx="50" cy="86" r="3.300" fill="#f0c64a" stroke="#b98d1e" stroke-width=".7"/>
+    ${ear(false)}${ear(true)}
+    <path d="M50 26 C34 26 25 37 26 50 C27 62 36 72 50 74 C64 72 73 62 74 50 C75 37 66 26 50 26Z" fill="#1c1a1c"/>
+    <path d="M41 28 C41.500 36 45.500 44 47.500 51 L52.500 51 C52.500 42 51 34 49.500 26.500 Q45 26 41 28Z" fill="#fff"/>
+    <ellipse cx="50" cy="62.500" rx="14.500" ry="12" fill="#fff"/>
+    ${brow(38, -20)}${brow(62, 20)}${eye(38.5)}${eye(61.5)}
+    <path d="M44 57.500 Q50 54 56 57.500 Q56.500 63 50 65 Q43.500 63 44 57.500Z" fill="#191719"/><ellipse cx="48" cy="57.800" rx="2" ry="1" fill="#fff" opacity=".55"/>
+    <path d="M47 69.500 Q50 76.500 53 69.500Z" fill="#ef8fa1"/><path d="M50 65 V68.500 M50 68.500 Q45 72 41 69 M50 68.500 Q55 72 59 69" stroke="#555" stroke-width="1.400" fill="none" stroke-linecap="round"/>
+    ${whisk}${bone}</svg>`;
+}
 function avatarSVG(p, cls) {
   const a = p.av;
+  if (a.chien) return dogSVG(a, cls);
   return `<svg class="av ${cls || ''}" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="50" fill="${a.bg}"/>
     ${hairBack(a)}${outfit(a)}
     <path d="M42 60 V77 Q50 83 58 77 V60Z" fill="${a.skin}"/><path d="M42 64 Q50 71 58 64 V61 H42Z" fill="rgba(0,0,0,.08)"/>

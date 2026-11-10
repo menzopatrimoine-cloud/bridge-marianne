@@ -282,12 +282,17 @@ function missionSlipCheck(seat, card) {
     return top >= need && mine && mine.ns < need;
   } catch (e) { return false; }
 }
-const ficheListHTML = () => `<div class="fiche-list">${Object.keys(B.FICHES).sort().map(k => `<button class="btn" data-fiche="${k}">${ICONS.book}<span>Fiche ${k} : ${rich(B.FICHES[k])}</span></button>`).join('')}</div>`;
+// les fiches en PDF, prêtes à imprimer (un onglet s'ouvre ; sur l'iPad : Partager, puis Imprimer)
+const fichePdf = k => `fiches/pdf/fiche-${k}.pdf?v=1`;
+const pdfLink = (href, label, cls) => `<a class="btn pdf-btn ${cls || ''}" href="${href}" target="_blank" rel="noopener">${ICONS.print}<span>${label}</span></a>`;
+const ficheListHTML = () => `<div class="fiche-list">${Object.keys(B.FICHES).sort().map(k => `<div class="fiche-row"><button class="btn" data-fiche="${k}">${ICONS.book}<span>Fiche ${k} : ${rich(B.FICHES[k])}</span></button>${pdfLink(fichePdf(k), 'PDF')}</div>`).join('')}</div>`;
 function renderFiches() {
   $app.innerHTML = `<div class="page"><div class="inner">
     <button class="btn back" data-act="${backAct()}">← Retour</button>
     <h1>Les fiches du cours</h1>
     <p>Toutes les fiches d'apprentissage, en gros caractères. Touchez une fiche pour l'ouvrir en grand.</p>
+    <div class="pdf-all">${pdfLink('fiches/pdf/cours-complet.pdf?v=1', 'Imprimer tout le cours (PDF)', 'gold')}</div>
+    <p class="pdf-how">Pour imprimer une seule fiche, touchez « PDF » à côté d'elle. Sur l'iPad, touchez ensuite le bouton Partager, puis « Imprimer ».</p>
     ${ficheListHTML()}
   </div></div>`;
 }
@@ -1289,6 +1294,7 @@ function explainHTML() {
   </div>`;
 }
 const ICONS = {
+  print: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 8V3h10v5"/><rect x="3" y="8" width="18" height="9" rx="2"/><path d="M7 14h10v7H7z"/></svg>',
   net: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.8 2.6 4 5.7 4 9s-1.200 6.400-4 9c-2.800-2.600-4-5.700-4-9s1.200-6.400 4-9z"/></svg>',
   hint: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.6 10.8c.6.5 1 1.2 1 2V17h5.2v-1.2c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></svg>',
   undo: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg>',
@@ -2393,7 +2399,7 @@ function openFiche(id, think) {
   const v = document.createElement('div');
   v.className = 'fiche-view';
   v.innerHTML = `<div class="bar"><div class="ttl">Fiche du cours n° ${id}<small>${rich(B.FICHES[id])}</small></div>
-    <button class="btn" data-z="-1">A−</button><button class="btn" data-z="1">A+</button><button class="btn primary" data-close>Fermer</button></div>
+    ${pdfLink(fichePdf(id), 'PDF')}<button class="btn" data-z="-1">A−</button><button class="btn" data-z="1">A+</button><button class="btn primary" data-close>Fermer</button></div>
     ${think ? `<div class="fiche-think"><div class="ft-txt"><b>Réfléchissez avec la fiche.</b> Votre main : ${[0, 1, 2, 3].map(s => `<span class="ft-s">${su(s)} ${B.ranksIn(think.hand, s).map(x => B.RANK_TXT[x]).join(' ') || '—'}</span>`).join('')}<span class="ft-p"><b>${B.hcp(think.hand)} points H</b>, ${B.HL(think.hand)} points HL</span></div>
       <button class="btn gold" data-answer>Voir la réponse</button></div>` : ''}
     <div class="pages">${Array.from({ length: n }, (_, i) => `<img src="fiches/f${id}-${i + 1}.jpg?v=4" alt="Fiche ${id}, page ${i + 1}">`).join('')}</div>`;

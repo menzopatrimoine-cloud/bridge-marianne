@@ -1,8 +1,8 @@
 /* Service worker : l'application fonctionne sans internet une fois installée */
-const CACHE = 'bridge-marianne-v13';
+const CACHE = 'bridge-marianne-v14';
 const FILES = [
-  './', './index.html', './manifest.webmanifest', './css/style.css?v=13',
-  './js/core.js?v=13', './js/bidding.js?v=13', './js/dd.js?v=13', './js/play.js?v=13', './js/sound.js?v=13', './js/persos.js?v=13', './js/analyse.js?v=13', './js/missions.js?v=13', './js/lecons-data.js?v=13', './js/lecons.js?v=13', './js/app.js?v=13',
+  './', './index.html', './manifest.webmanifest', './css/style.css?v=14',
+  './js/core.js?v=14', './js/bidding.js?v=14', './js/dd.js?v=14', './js/play.js?v=14', './js/sound.js?v=14', './js/persos.js?v=14', './js/analyse.js?v=14', './js/missions.js?v=14', './js/lecons-data.js?v=14', './js/lecons.js?v=14', './js/app.js?v=14',
   './fonts/AHN-500.ttf', './fonts/AHN-700.ttf', './fonts/AHN-800.ttf',
   './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png',
   // les fiches du cours (images), pour les ouvrir sans internet
@@ -11,6 +11,8 @@ const FILES = [
   './fiches/f07-1.jpg?v=4', './fiches/f07-2.jpg?v=4', './fiches/f07-3.jpg?v=4', './fiches/f08-1.jpg?v=4', './fiches/f08-2.jpg?v=4',
   './fiches/f09-1.jpg?v=4', './fiches/f09-2.jpg?v=4', './fiches/f10-1.jpg?v=4', './fiches/f10-2.jpg?v=4', './fiches/f11-1.jpg?v=4',
   './fiches/f11-2.jpg?v=4', './fiches/f12-1.jpg?v=4', './fiches/f12-2.jpg?v=4', './fiches/f13-1.jpg?v=4', './fiches/f13-2.jpg?v=4', './fiches/f14-1.jpg?v=4', './fiches/f15-1.jpg?v=4',
+  // les mêmes fiches en PDF, à imprimer
+  './fiches/pdf/cours-complet.pdf?v=1', './fiches/pdf/fiche-01.pdf?v=1', './fiches/pdf/fiche-02.pdf?v=1', './fiches/pdf/fiche-03.pdf?v=1', './fiches/pdf/fiche-04.pdf?v=1', './fiches/pdf/fiche-05.pdf?v=1', './fiches/pdf/fiche-06.pdf?v=1', './fiches/pdf/fiche-07.pdf?v=1', './fiches/pdf/fiche-08.pdf?v=1', './fiches/pdf/fiche-09.pdf?v=1', './fiches/pdf/fiche-10.pdf?v=1', './fiches/pdf/fiche-11.pdf?v=1', './fiches/pdf/fiche-12.pdf?v=1', './fiches/pdf/fiche-13.pdf?v=1', './fiches/pdf/fiche-14.pdf?v=1', './fiches/pdf/fiche-15.pdf?v=1',
 ];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
