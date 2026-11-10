@@ -5,7 +5,7 @@ window.addEventListener("error", e => { window.__err = (window.__err || "") + e.
 const STORE = 'bridge-marianne-v1';
 const $app = document.getElementById('app');
 const $modal = document.getElementById('modal-root');
-const DEFAULTS = { cardSize: 'grand', fourColors: false, speed: 'normal', doubleTap: true, showPoints: true, checkBids: true, deals: 'hasard', sound: true, volume: 'moyen', music: 'douce', voice: false, animations: true };
+const DEFAULTS = { cardSize: 'grand', fourColors: false, speed: 'normal', doubleTap: true, showPoints: true, checkBids: true, deals: 'hasard', sound: true, volume: 'moyen', music: 'douce', voice: false, animations: true, tour: true };
 const ORDER = [2, 3, 0, 1];                 // colonnes du tableau d'enchères : S O N E
 const SPEED = { lent: 1.6, normal: 1, rapide: 0.55 };
 
@@ -76,6 +76,10 @@ const perso = s => B.PERSOS[persoIdx(s) % B.PERSOS.length];
 const nameOf = s => s === 2 ? 'vous' : perso(s).name;
 const esc = t => String(t == null ? '' : t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const seatName = s => s === 2 ? 'Vous' : nameOf(s);
+// Roger, le chef du bridge : ses cours à l'Hippocampe
+const chefOf = () => B.PERSOS.find(q => q.av.chef);
+const CHEF_BADGE = '<span class="chef-badge">★ Chef du bridge</span>';
+const CHEF_COURS = '<div class="chef-cours"><b>Le mardi :</b> cours intermédiaires et confirmés<br><b>Le jeudi :</b> cours débutants</div>';
 const FICHE_PAGES = { '01': 3, '02': 1, '03': 1, '04': 2, '05': 1, '06': 2, '07': 3, '08': 2, '09': 2, '10': 2, '11': 2, '12': 2, '13': 2, '14': 1, '15': 1 };
 const ficheBtn = f => FICHE_PAGES[f] ? `<button class="btn fiche-link" data-fiche="${f}">${ICONS.book}<span>Ouvrir la fiche du cours n° ${f} : ${rich(B.FICHES[f])}</span></button>` : '';
 function callHTML(c, long) {
@@ -157,12 +161,22 @@ function newDeal(sameHands, preset) {
   G.game = { board, dealer: info.dealer, vul: info.vul, hands, auction: [], phase: 'bidding', play: null, contract: null, undo: [], selCall: null, result: null, recorded: false, opp: [picks[0], picks[1]], nord: picks[2], learn: preset ? preset.learn : undefined };
   thinking = -1; holdTrick = false; bidLevel = null; selected = null; hintCard = null; lastPlayed = null;
   fly = null; dealAnim = true; dummyRevealKey = null; newBidIdx = -1; robotActed = true; shownWon = [0, 0];
-  screen = 'game';
   save();
+  // une nouvelle partie : chacun se présente d'abord, on distribue ensuite
+  if (!preset && !sameHands && G.settings.tour !== false) {
+    screen = 'tour';
+    render();
+    [0, 3, 1].forEach(s => say(perso(s).hello));
+    return;
+  }
+  beginDeal(!sameHands);
+}
+function beginDeal(announce) {
+  screen = 'game';
   snd('shuffle');
   dealing = anim();
   render();
-  if (!sameHands) {
+  if (announce) {
     const who = P.name ? `<b>${esc(P.name)}</b>${P.title ? ', ' + esc(P.title) + ',' : ''} joue` : 'Vous jouez';
     toast(`${who} avec <b>${perso(0).name}</b>, ${perso(0).title}, contre <b>${perso(3).name}</b>, ${perso(3).title}, et <b>${perso(1).name}</b>, ${perso(1).title}.`, 5200);
   }
@@ -172,7 +186,43 @@ function newDeal(sameHands, preset) {
 function pickPersos() {
   const pool = B.PERSOS.map((_, i) => i);
   for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
-  return pool.slice(0, 3);
+  const picks = pool.slice(0, 3);
+  // Roger, le chef du bridge, vient plus souvent : environ une donne sur trois, volontiers en partenaire
+  const chef = B.PERSOS.indexOf(chefOf());
+  if (!picks.includes(chef) && Math.random() < 0.2) picks[2] = chef;
+  return picks;
+}
+/* ---------- Tour de table : chacun se présente avant de jouer ---------- */
+function tourSeat(pos, i, av, name, role, text, chef, extra) {
+  return `<div class="tour-p ${pos} ${chef ? 'chef' : ''}" style="--i:${i}">${av}<div class="tour-t">
+    <div class="tour-n"><b>${name}</b>${chef ? CHEF_BADGE : ''}${extra || ''}<small>${role}</small></div>
+    <div class="tour-b">${text}</div>${chef ? CHEF_COURS : ''}</div></div>`;
+}
+function renderTour() {
+  const robot = (s, pos, i, role) => { const q = perso(s); return tourSeat(pos, i, B.avatarSVG(q), q.name, `${role} · ${q.title}`, `« ${q.hello} »`, !!q.av.chef); };
+  $app.innerHTML = `<div class="tour ${anim() ? 'anim' : ''}"><div class="tour-in">
+    <h1>Tour de table</h1>
+    <div class="tour-grid">
+      ${robot(0, 'n', 0, 'votre partenaire')}
+      ${robot(3, 'w', 1, 'adversaire')}
+      ${robot(1, 'e', 2, 'adversaire')}
+      ${tourSeat('s', 3, meAvatar(), P.name ? esc(P.name) : 'Vous', P.title ? esc(P.title) : 'Sud', `Vous jouez avec <b>${perso(0).name}</b>, en face de vous, contre <b>${perso(3).name}</b> et <b>${perso(1).name}</b>.`, false)}
+    </div>
+    <button class="btn primary tour-go" data-act="tour-go">À table !</button>
+    <div class="tour-note">Le tour de table peut être retiré dans les Réglages.</div>
+  </div></div>`;
+}
+/* ---------- La découverte des personnages ---------- */
+function renderPersos() {
+  const list = B.PERSOS.slice().sort((a, b) => (b.av.chef ? 1 : 0) - (a.av.chef ? 1 : 0));
+  $app.innerHTML = `<div class="page"><div class="inner">
+    <button class="btn back" data-act="${G.game && G.game.phase !== 'end' ? 'resume' : 'go:home'}">← Retour</button>
+    <h1>Les personnages</h1>
+    <p>Voici les ${list.length} joueurs que vous pouvez retrouver à votre table, comme partenaire ou comme adversaire.</p>
+    <div class="pc-list">${list.map(q => `<div class="pc ${q.av.chef ? 'chef' : ''}">${B.avatarSVG(q)}<div class="pc-t">
+      <div class="pc-n"><b>${q.name}</b>${q.av.chef ? CHEF_BADGE : ''}</div><small>${q.title}</small>
+      <p>${q.bio}</p>${q.av.chef ? CHEF_COURS : ''}<p class="pc-h">« ${q.hello} »</p></div></div>`).join('')}</div>
+  </div></div>`;
 }
 
 /* ---------- Missions : des fins de donne à réussir, de plus en plus difficiles ---------- */
@@ -490,6 +540,7 @@ function renderApprendre() {
   $app.innerHTML = `<div class="page"><div class="inner">
     <button class="btn back" data-act="go:home">← Accueil</button>
     <h1>Apprendre</h1>
+    <div class="chef-box">${B.avatarSVG(chefOf())}<div><div class="pc-n"><b>Roger</b>${CHEF_BADGE}</div><p>« Ici, vous apprenez à votre rythme. Et pour me retrouver à l'Hippocampe, à Villefranche-sur-Mer : »</p>${CHEF_COURS}</div></div>
     <h2>Mini-bridge <small>sans enchères, pour découvrir le jeu : on compte les points, et on joue</small></h2>
     <div class="ld-list">${themes}</div>
     <h2>Le cours pas à pas <small>chaque chapitre reprend une fiche du cours, avec des donnes pour s'exercer</small></h2>
@@ -924,6 +975,7 @@ function menu() {
     <button class="btn" data-m="apprendre">Apprendre</button>
     <button class="btn" data-m="missions">Les missions</button>
     <button class="btn" data-m="fiches">Les fiches du cours</button>
+    <button class="btn" data-m="persos">Les personnages</button>
     <button class="btn" data-m="stats">Mes résultats</button>
     <button class="btn" data-m="help">Comment jouer</button>
     <button class="btn" data-m="settings">Réglages</button>
@@ -961,6 +1013,8 @@ function render() {
   if (screen === 'help') return renderHelp();
   if (screen === 'missions') return renderMissions();
   if (screen === 'fiches') return renderFiches();
+  if (screen === 'persos') return renderPersos();
+  if (screen === 'tour' && G.game) return renderTour();
   if (screen === 'apprendre') return renderApprendre();
   if (screen === 'lm') return renderTheme();
   if (screen === 'lecon') return renderLecon();
@@ -991,6 +1045,7 @@ function renderHome() {
         <button class="btn" data-act="go:stats">Mes résultats</button>
         <button class="btn" data-act="go:help">Comment jouer</button>
         <button class="btn" data-act="go:settings">Réglages</button>
+        <button class="btn wide" data-act="go:persos">Découvrir les personnages</button>
       </div>
     </div></div></div>`;
 }
@@ -1009,7 +1064,7 @@ function renderGame() {
     const cls = `tag perso ${turn === s && phase !== 'end' ? 'turn' : ''}`;
     const sub = SEATN[s] + (phase === 'mini' && g.mini.step >= 1 ? ` · ${g.mini.pts[s]} pts` : role(s) ? ' · ' + role(s) : s === 0 ? ' · partenaire' : '');
     if (s === 2) return `<div class="${cls} me" data-me="1">${meAvatar()}<span class="nm"><b><span class="dot"></span>${P.name ? esc(P.name) : 'Vous'}</b><small>${sub}</small></span>${wlHTML(G.stats.me || { v: 0, d: 0 })}</div>`;
-    return `<div class="${cls}" data-perso="${s}">${B.avatarSVG(perso(s))}<span class="nm"><b><span class="dot"></span>${perso(s).name}</b><small>${sub}</small></span>${wlHTML(wlOf(perso(s).name, s === 0))}</div>`;
+    return `<div class="${cls}" data-perso="${s}">${B.avatarSVG(perso(s))}<span class="nm"><b><span class="dot"></span>${perso(s).name}${perso(s).av.chef ? ' ★' : ''}</b><small>${sub}</small></span>${wlHTML(wlOf(perso(s).name, s === 0))}</div>`;
   };
   const lastCallIdx = s => { for (let i = g.auction.length - 1; i >= 0; i--) if ((g.dealer + i) % 4 === s) return i; return -1; };
   const bubble = s => {
@@ -1499,6 +1554,7 @@ function renderSettings() {
     <div class="setting"><div class="lbl">Votre portrait<small>Votre photo (normale ou avec un effet rigolo), votre prénom et votre situation.</small></div><button class="btn me-btn" data-act="profil">${meAvatar()}Modifier</button></div>
     <div class="setting"><div class="lbl">Taille des cartes<small>« Très grandes » utilise toute la place disponible.</small></div>${seg('cardSize', [['normal', 'Grandes'], ['grand', 'Très grandes']])}</div>
     <div class="setting"><div class="lbl">Couleurs des cartes<small>4 couleurs : ${su(2)} orange et ${su(3)} vert, pour mieux les distinguer.</small></div>${seg('fourColors', [[false, '2 couleurs'], [true, '4 couleurs']])}</div>
+    <div class="setting"><div class="lbl">Tour de table<small>Avant chaque nouvelle donne, les joueurs se présentent.</small></div>${seg('tour', [[true, 'Oui'], [false, 'Non']])}</div>
     <div class="setting"><div class="lbl">Vitesse des robots</div>${seg('speed', [['lent', 'Lente'], ['normal', 'Normale'], ['rapide', 'Rapide']])}</div>
     <div class="setting"><div class="lbl">Jouer une carte<small>Deux touchers : le 1er soulève la carte, le 2e la joue (évite les erreurs).</small></div>${seg('doubleTap', [[true, '2 touchers'], [false, '1 toucher']])}</div>
     <div class="setting"><div class="lbl">Afficher mes points<small>Le nombre de points H et HL sous la boîte d'enchères.</small></div>${seg('showPoints', [[true, 'Oui'], [false, 'Non']])}</div>
@@ -1938,6 +1994,7 @@ $app.addEventListener('click', e => {
   if (k === 'new') newDeal(false);
   else if (k === 'replay') confirmReplay();
   else if (k === 'resume') go('game');
+  else if (k === 'tour-go') { if ('speechSynthesis' in window) speechSynthesis.cancel(); beginDeal(false); }
   else if (k === 'go') go(v);
   else if (k === 'menu') menu();
   else if (k === 'profil') openProfile();
@@ -2007,7 +2064,7 @@ function showPerso(s) {
   const q = perso(s), w = wlOf(q.name, s === 0);
   const pl = (n, word) => `<b>${n}</b> ${word}${n > 1 ? 's' : ''}`;
   modal(`<div class="perso-card">${B.avatarSVG(q)}<div><h2>${q.name}</h2><div class="ttl">${q.title} · ${s === 0 ? 'votre partenaire' : 'joue en ' + SEATN[s]}</div></div></div>
-    <p>${q.bio}</p>
+    <p>${q.bio}</p>${q.av.chef ? CHEF_COURS : ''}
     <p class="perso-wl">${s === 0 ? 'Avec' : 'Contre'} ${q.name} : <span class="w">${pl(w.v, 'victoire')}</span> · <span class="l">${pl(w.d, 'défaite')}</span></p>
     <div class="btns"><button class="btn primary" data-m="ok">Fermer</button></div>`);
 }
