@@ -1,8 +1,8 @@
 /* Service worker : l'application fonctionne sans internet une fois installée */
-const CACHE = 'bridge-marianne-v11';
+const CACHE = 'bridge-marianne-v12';
 const FILES = [
-  './', './index.html', './manifest.webmanifest', './css/style.css?v=11',
-  './js/core.js?v=11', './js/bidding.js?v=11', './js/dd.js?v=11', './js/play.js?v=11', './js/sound.js?v=11', './js/persos.js?v=11', './js/analyse.js?v=11', './js/missions.js?v=11', './js/lecons-data.js?v=11', './js/lecons.js?v=11', './js/app.js?v=11',
+  './', './index.html', './manifest.webmanifest', './css/style.css?v=12',
+  './js/core.js?v=12', './js/bidding.js?v=12', './js/dd.js?v=12', './js/play.js?v=12', './js/sound.js?v=12', './js/persos.js?v=12', './js/analyse.js?v=12', './js/missions.js?v=12', './js/lecons-data.js?v=12', './js/lecons.js?v=12', './js/app.js?v=12',
   './fonts/AHN-500.ttf', './fonts/AHN-700.ttf', './fonts/AHN-800.ttf',
   './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png',
   // les fiches du cours (images), pour les ouvrir sans internet

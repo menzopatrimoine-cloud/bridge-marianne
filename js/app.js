@@ -1999,7 +1999,7 @@ function renderReview() {
 
 /* ---------- Jeu en ligne : le serveur distribue et arbitre, l'appli montre ce qu'il envoie ---------- */
 // Chaque joueur se voit toujours en bas (Sud), son partenaire en haut : tout est tourné à l'affichage.
-const ONLINE_URL = ['127.0.0.1', 'localhost'].includes(location.hostname) ? `ws://${location.hostname}:8770/ws` : '';
+const ONLINE_URL = ['127.0.0.1', 'localhost'].includes(location.hostname) ? `ws://${location.hostname}:8770/ws` : '';   // adresse du serveur à renseigner à l'ouverture ; vide = bouton masqué
 const TABLE_KEY = 'bridge-marianne-table';
 const savedTable = () => { try { return JSON.parse(localStorage.getItem(TABLE_KEY)); } catch (e) { return null; } };
 const forgetTable = () => { try { localStorage.removeItem(TABLE_KEY); } catch (e) { /* stockage indisponible */ } };

@@ -123,6 +123,12 @@ const PERSOS = [
     gagne: 'Un tout petit contrat de rien du tout… comme mes apéritifs !', perd: 'Bravo ! Vous restez bien pour l\'apéritif ? J\'ai prévu douze plats.',
     avecGagne: 'Bravo, partenaire ! Passons à table : j\'ai préparé deux ou trois bricoles, et le homard.', avecPerd: 'Ordonnance du docteur : un simple apéritif, et on repart. Enfin, simple…',
     av: { bg: '#f7d6c4', skin: '#f2cdb4', hair: '#b98f62', style: 'carre', outfit: 'blouse', cloth: '#dcebf3', accent: '#c9a34a', earrings: 'or', lips: true, tiare: true } },
+  { name: 'Menzo', title: 'le créateur de l\'application',
+    hello: 'Bonjour, je suis Menzo : c\'est moi qui ai créé cette application. Si les cartes ne vous plaisent pas, vous savez à qui vous plaindre !',
+    bio: 'Le créateur de cette application. Il l\'a imaginée pour que Marianne puisse jouer au bridge comme dans son cours, à toute heure et avec tout ce petit monde.',
+    gagne: 'Je n\'ai pas triché, promis : c\'est le robot qui distribue !', perd: 'Bravo ! Je crois que je vais devoir mettre mon jeu à jour.',
+    avecGagne: 'Bravo, partenaire ! Je mets cette donne dans la prochaine version.', avecPerd: 'Ce n\'est pas une erreur, c\'est un bug. Je corrige ça tout de suite.',
+    av: { bg: '#c8d7f0', skin: '#ecc4a6', hair: '#3a2c22', style: 'court', outfit: 'col-roule', cloth: '#1d2b4f', tablette: true } },
 ];
 
 const BROW = 'rgba(90, 80, 70, .75)';
@@ -243,6 +249,8 @@ function extras(a) {
   if (a.broche) s += '<path d="M36.5 83 C40.5 81.5 42.5 85.5 40 88 C38 90 39.5 93.5 42 94 C44.5 94.5 45.5 92 43.5 91.2 M37 83.6 L33 85.2 M41 86.4 L43.8 87.4" stroke="#f0c64a" stroke-width="1.7" fill="none" stroke-linecap="round"/><circle cx="37.6" cy="84" r=".6" fill="#7a5a10"/>';
   // fleur dans les cheveux (Christine) et petit avion sur le polo (Thierry)
   if (a.fleur) s += [[67, 24], [72.5, 27.5], [70.5, 33.5], [64, 33.5], [62, 27.5]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="3.7" fill="#e23b3b" stroke="rgba(0,0,0,.12)" stroke-width=".6"/>`).join('') + '<circle cx="67.3" cy="29.3" r="2.6" fill="#f6cf45"/>';
+  // la tablette du créateur (Menzo), avec un petit pique
+  if (a.tablette) s += '<rect x="55" y="83" width="15" height="19" rx="2" fill="#f4f6fa" stroke="rgba(0,0,0,.35)" stroke-width=".8"/><path d="M62.5 87.5 C61.5 90 58.8 91.5 58.8 93.8 C58.8 95.6 61 96.2 62 94.8 L61.2 97.6 H63.8 L63 94.8 C64 96.2 66.2 95.6 66.2 93.8 C66.2 91.5 63.5 90 62.5 87.5Z" fill="#18202e"/>';
   // la tiare du banquet royal (Annick) ; l'étoile du chef, sur le revers (Roger)
   if (a.tiare) s += '<path d="M35.5 26.5 L39.5 15 L45 22.5 L50 11.5 L55 22.5 L60.5 15 L64.5 26.5 Q50 21 35.5 26.5Z" fill="#f0c64a" stroke="#b98d1e" stroke-width=".8" stroke-linejoin="round"/><circle cx="50" cy="13" r="2" fill="#d2232a"/><circle cx="39.7" cy="16" r="1.4" fill="#2a8fbd"/><circle cx="60.3" cy="16" r="1.4" fill="#2a8fbd"/>';
   if (a.chef) s += '<path d="M31 80.5 L33.2 85.2 L38.3 85.8 L34.5 89.2 L35.6 94.2 L31 91.6 L26.4 94.2 L27.5 89.2 L23.7 85.8 L28.8 85.2Z" fill="#f4cd55" stroke="#a97f18" stroke-width=".8" stroke-linejoin="round"/><circle cx="50" cy="50" r="48" fill="none" stroke="#d4a72c" stroke-width="4"/>';
