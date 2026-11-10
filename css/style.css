@@ -242,8 +242,8 @@ svg.su { width: 0.95em; height: 0.95em; vertical-align: -0.12em; display: inline
 .page h2 { font-size: 26px; color: var(--navy); margin: 30px 0 10px; }
 .page p, .page li { font-size: 20px; line-height: 1.5; }
 .page .back { margin-bottom: 18px; }
-.home { background: radial-gradient(ellipse at 50% 30%, #2a7354 0%, var(--felt) 50%, var(--felt-dark) 100%); height: 100%; overflow-y: auto; display: flex; align-items: center; justify-content: center; padding: 24px; }
-.home .card-box { background: var(--cream); border-radius: 28px; padding: 32px 34px; width: min(620px, 100%); box-shadow: 0 20px 50px rgba(0,0,0,.4); text-align: center; }
+.home { background: radial-gradient(ellipse at 50% 30%, #2a7354 0%, var(--felt) 50%, var(--felt-dark) 100%); height: 100%; overflow-y: auto; display: flex; align-items: flex-start; justify-content: center; padding: 24px; }
+.home .card-box { background: var(--cream); border-radius: 28px; padding: 32px 34px; width: min(620px, 100%); margin: auto; box-shadow: 0 20px 50px rgba(0,0,0,.4); text-align: center; }
 .home .logo { display: flex; justify-content: center; gap: 10px; margin-bottom: 6px; }
 .home .logo svg { width: 44px; height: 44px; }
 .home h1 { font-size: 40px; margin: 6px 0 2px; color: var(--navy); }
@@ -715,3 +715,31 @@ body.tel .chef-box .av { width: 62px; height: 62px; }
 .pc .pc-h { color: #1f5b42; font-weight: 600; }
 body.tel .pc .av { width: 60px; height: 60px; }
 .home-mini .btn.wide { grid-column: 1 / -1; }
+
+/* Jeu en ligne */
+#on-banner { position: fixed; top: 0; left: 50%; transform: translateX(-50%); z-index: 90; background: #a8322a; color: #fff; font-weight: 800; font-size: 18px; padding: 8px 18px; border-radius: 0 0 14px 14px; }
+.btn.online-btn { background: #2f5d9e; color: #fff; border-color: #234a82; gap: 10px; }
+.btn.online-btn .ico { width: 28px; height: 28px; }
+.on-form label { display: block; font-size: 20px; font-weight: 700; margin: 12px 0 5px; }
+.on-form input { width: 100%; font: inherit; font-size: 26px; font-weight: 700; padding: 12px 14px; border: 2px solid var(--line); border-radius: 12px; background: #fff; color: var(--ink); }
+.on-form .btn:not(.back) { width: 100%; min-height: 66px; font-size: 23px; margin-top: 12px; }
+.on-code { color: var(--gold-soft); letter-spacing: .05em; white-space: nowrap; }
+.on-sub { color: #fff; font-size: 20px; text-align: center; }
+.on-invite { min-height: 56px; font-size: 21px; min-width: 300px; }
+.on-leave { min-height: 48px; font-size: 18px; }
+.on-sit { display: block; margin-top: 8px; min-height: 46px; font-size: 19px; }
+.on-empty { width: 84px; height: 84px; border-radius: 50%; border: 3px dashed var(--line); flex: none; }
+body.tel .on-empty { width: 58px; height: 58px; }
+.tour-p.mine { background: var(--cream); border-color: var(--gold-soft); }
+.on-ok { display: inline-block; background: #2e8b57; color: #fff; border-radius: 999px; padding: 1px 10px; font-size: 15px; font-weight: 800; margin-left: 8px; vertical-align: 2px; }
+.on-score { margin-top: 6px; font-size: 18px; }
+.on-totals { text-align: center; }
+@media (max-height: 880px) {
+  .home .card-box { padding: 18px 30px; }
+  .home .logo svg { width: 34px; height: 34px; }
+  .home .sub { font-size: 18px; margin-bottom: 12px; }
+  .home .menu-list { gap: 8px; }
+  .home .menu-list .btn { min-height: 56px; font-size: 22px; }
+  .home .home-mini { gap: 8px; }
+  .home .home-mini .btn { min-height: 46px; font-size: 18px; }
+}

@@ -9,6 +9,7 @@ const DEFAULTS = { cardSize: 'grand', fourColors: false, speed: 'normal', double
 const ORDER = [2, 3, 0, 1];                 // colonnes du tableau d'enchères : S O N E
 const SPEED = { lent: 1.6, normal: 1, rapide: 0.55 };
 
+let ON = null;               // table en ligne en cours (voir « Jeu en ligne »)
 let G = load();
 // votre portrait (photo, prénom, situation) : rangé à part pour ne pas réécrire la photo à chaque carte jouée
 const PROFILE_KEY = 'bridge-marianne-profil';
@@ -54,7 +55,7 @@ function load() {
   } catch (e) { /* stockage indisponible */ }
   return { settings: Object.assign({}, DEFAULTS), stats: { history: [] }, game: null, nextBoard: 1 };
 }
-function save() { try { localStorage.setItem(STORE, JSON.stringify(G)); } catch (e) { /* stockage indisponible */ } }
+function save() { try { localStorage.setItem(STORE, JSON.stringify(ON ? Object.assign({}, G, { game: ON.solo }) : G)); } catch (e) { /* stockage indisponible */ } }
 
 /* ---------- Petits utilitaires d'affichage ---------- */
 const su = s => `<svg class="su su${s}" aria-hidden="true"><use href="#su${s}"/></svg>`;
@@ -72,7 +73,7 @@ function persoIdx(s) {
   while (g.opp.includes(i)) i++;
   return i;
 }
-const perso = s => B.PERSOS[persoIdx(s) % B.PERSOS.length];
+const perso = s => ON && ON.v && G.game && G.game.online ? onlinePerso(s) : B.PERSOS[persoIdx(s) % B.PERSOS.length];
 const nameOf = s => s === 2 ? 'vous' : perso(s).name;
 const esc = t => String(t == null ? '' : t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const seatName = s => s === 2 ? 'Vous' : nameOf(s);
@@ -192,6 +193,7 @@ function pickPersos() {
   if (!picks.includes(chef) && Math.random() < 0.2) picks[2] = chef;
   return picks;
 }
+const backAct = () => G.game && (G.game.online || G.game.phase !== 'end') ? 'resume' : 'go:home';
 /* ---------- Tour de table : chacun se présente avant de jouer ---------- */
 function tourSeat(pos, i, av, name, role, text, chef, extra) {
   return `<div class="tour-p ${pos} ${chef ? 'chef' : ''}" style="--i:${i}">${av}<div class="tour-t">
@@ -216,7 +218,7 @@ function renderTour() {
 function renderPersos() {
   const list = B.PERSOS.slice().sort((a, b) => (b.av.chef ? 1 : 0) - (a.av.chef ? 1 : 0));
   $app.innerHTML = `<div class="page"><div class="inner">
-    <button class="btn back" data-act="${G.game && G.game.phase !== 'end' ? 'resume' : 'go:home'}">← Retour</button>
+    <button class="btn back" data-act="${backAct()}">← Retour</button>
     <h1>Les personnages</h1>
     <p>Voici les ${list.length} joueurs que vous pouvez retrouver à votre table, comme partenaire ou comme adversaire.</p>
     <div class="pc-list">${list.map(q => `<div class="pc ${q.av.chef ? 'chef' : ''}">${B.avatarSVG(q)}<div class="pc-t">
@@ -283,7 +285,7 @@ function missionSlipCheck(seat, card) {
 const ficheListHTML = () => `<div class="fiche-list">${Object.keys(B.FICHES).sort().map(k => `<button class="btn" data-fiche="${k}">${ICONS.book}<span>Fiche ${k} : ${rich(B.FICHES[k])}</span></button>`).join('')}</div>`;
 function renderFiches() {
   $app.innerHTML = `<div class="page"><div class="inner">
-    <button class="btn back" data-act="${G.game && G.game.phase !== 'end' ? 'resume' : 'go:home'}">← Retour</button>
+    <button class="btn back" data-act="${backAct()}">← Retour</button>
     <h1>Les fiches du cours</h1>
     <p>Toutes les fiches d'apprentissage, en gros caractères. Touchez une fiche pour l'ouvrir en grand.</p>
     ${ficheListHTML()}
@@ -640,11 +642,16 @@ function renderComment() {
 }
 function userControls(seat) {
   const g = G.game;
+  if (g.online) {
+    if (g.phase !== 'play') return seat === 2;
+    return seat === g.play.dummy ? g.play.declarer === 2 : seat === 2;   // le mort est joué par son déclarant
+  }
   if (seat === 2) return true;
   return g.phase === 'play' && seat === 0 && B.sideOf(g.play.declarer) === 0;
 }
 function pushUndo() {
   const g = G.game;
+  if (g.online) return;
   g.undo.push(JSON.parse(JSON.stringify({ auction: g.auction, phase: g.phase, play: g.play, contract: g.contract, selCall: g.selCall })));
   if (g.undo.length > 60) g.undo.shift();
 }
@@ -653,6 +660,7 @@ function pushUndo() {
 function step() {
   const g = G.game;
   if (!g || screen !== 'game' || dealing) return;
+  if (g.online) { render(); return; }            // en ligne, c'est le serveur qui mène le jeu
   if (robotPending) { render(); return; }
   const tok = runToken;
   if (g.phase === 'bidding') {
@@ -709,6 +717,7 @@ function step() {
 }
 function doPlay(seat, card) {
   const g = G.game, p = g.play, tok = runToken;
+  if (g.online) { selected = null; hintCard = null; onSend({ t: 'play', card }); render(); return; }
   fly = anim() ? flyOrigin(seat, card) : null;
   const slip = g.mission && missionSlipCheck(seat, card);
   const res = B.playCard(p, seat, card);
@@ -828,6 +837,7 @@ function submitCall(call, force) {
     const h = B.decide(g.hands[2], g.auction, g.dealer);
     if (h.sure && h.call !== call) { deviation(h, call); return; }
   }
+  if (g.online) { bidLevel = null; onSend({ t: 'bid', call }); return; }
   pushUndo();
   g.auction.push(call);
   g.selCall = g.auction.length - 1;
@@ -911,6 +921,7 @@ function hint() {
     const p = g.play;
     if (holdTrick || !userControls(p.turn)) { toast('Attendez votre tour pour demander un conseil.'); return; }
     if (g.mission) { missionHint(); return; }
+    if (g.online) { onSend({ t: 'hint' }); return; }
     const r = B.chooseCard(p, p.turn, { samples: 16 });
     hintCard = r.card;
     if (G.settings.doubleTap) selected = r.card;
@@ -968,6 +979,7 @@ function claim() {
   });
 }
 function menu() {
+  if (G.game && G.game.online) { onlineMenu(); return; }
   const inGame = screen === 'game' && G.game;
   modal(`<h2>Menu</h2><div class="menu-list">
     <button class="btn primary" data-m="new">Nouvelle donne</button>
@@ -997,7 +1009,7 @@ const clearToast = () => { const t = document.querySelector('.toast'); if (t) t.
 function go(s) {
   cancelTimers();
   clearToast();
-  thinking = -1; holdTrick = false;
+  if (!ON) { thinking = -1; holdTrick = false; }
   screen = s;
   render();
   if (s === 'game') step();
@@ -1015,6 +1027,9 @@ function render() {
   if (screen === 'fiches') return renderFiches();
   if (screen === 'persos') return renderPersos();
   if (screen === 'tour' && G.game) return renderTour();
+  if (screen === 'online') return renderOnline();
+  if (screen === 'onlobby' && ON && ON.v) return renderLobby();
+  if (screen === 'ontour' && ON && ON.v) return renderOnTour();
   if (screen === 'apprendre') return renderApprendre();
   if (screen === 'lm') return renderTheme();
   if (screen === 'lecon') return renderLecon();
@@ -1040,6 +1055,7 @@ function renderHome() {
       <button class="btn ${resume ? '' : 'primary'}" data-act="new">Nouvelle donne</button>
       <button class="btn green" data-act="go:apprendre">${ICONS.cap}Apprendre</button>
       <button class="btn gold" data-act="go:missions">★ Les missions <small>${B.MISSIONS.filter(m => MP().done[m.id]).length} / ${B.MISSIONS.length}</small></button>
+      ${onlineHomeHTML()}
       <div class="home-mini">
         <button class="btn" data-act="go:fiches">Les fiches</button>
         <button class="btn" data-act="go:stats">Mes résultats</button>
@@ -1063,6 +1079,10 @@ function renderGame() {
   const tag = s => {
     const cls = `tag perso ${turn === s && phase !== 'end' ? 'turn' : ''}`;
     const sub = SEATN[s] + (phase === 'mini' && g.mini.step >= 1 ? ` · ${g.mini.pts[s]} pts` : role(s) ? ' · ' + role(s) : s === 0 ? ' · partenaire' : '');
+    if (g.online) {
+      const q = perso(s);
+      return `<div class="${cls} ${s === 2 ? 'me' : ''}" ${s === 2 ? '' : `data-perso="${s}"`}>${avatarOf(q)}<span class="nm"><b><span class="dot"></span>${q.name}${q.av.chef ? ' ★' : ''}</b><small>${sub}${q.human && !q.online ? ' · hors ligne' : ''}</small></span></div>`;
+    }
     if (s === 2) return `<div class="${cls} me" data-me="1">${meAvatar()}<span class="nm"><b><span class="dot"></span>${P.name ? esc(P.name) : 'Vous'}</b><small>${sub}</small></span>${wlHTML(G.stats.me || { v: 0, d: 0 })}</div>`;
     return `<div class="${cls}" data-perso="${s}">${B.avatarSVG(perso(s))}<span class="nm"><b><span class="dot"></span>${perso(s).name}${perso(s).av.chef ? ' ★' : ''}</b><small>${sub}</small></span>${wlHTML(wlOf(perso(s).name, s === 0))}</div>`;
   };
@@ -1085,7 +1105,7 @@ function renderGame() {
   };
   // Nord
   let north;
-  const northVisible = phase === 'end' || (phase === 'play' && (B.sideOf(decl) === 0 || (dummy === 0 && dummyShown))) || (phase === 'mini' && g.mini.step >= 2 && g.mini.side === 0);
+  const northVisible = phase === 'end' || (phase === 'play' && (g.online ? dummy === 0 && dummyShown : B.sideOf(decl) === 0 || (dummy === 0 && dummyShown))) || (phase === 'mini' && g.mini.step >= 2 && g.mini.side === 0);
   if (northVisible) north = dummyHTML(phase === 'end' ? [] : hands[0], 0, 'cols', cardCls);
   else north = backsHTML(hands[0].length);
   // Est / Ouest
@@ -1205,7 +1225,7 @@ function panelHTML(status) {
       : g.mini ? `<div class="mission-box"><div class="mi-k">Mini-bridge</div><div class="mi-title">${LC.theme(g.learn.group).titre}</div><p>${LC.theme(g.learn.group).resume}</p></div>`
       : `<div class="info">Donneur : <b>${seatName(g.dealer)}</b><br>
       Nord-Sud <span class="vul ${vulNS ? 'v' : 'nv'}">${vulNS ? 'vulnérables' : 'non vulnérables'}</span><br>
-      Est-Ouest <span class="vul ${vulEW ? 'v' : 'nv'}">${vulEW ? 'vulnérables' : 'non vulnérables'}</span></div>`}`;
+      Est-Ouest <span class="vul ${vulEW ? 'v' : 'nv'}">${vulEW ? 'vulnérables' : 'non vulnérables'}</span>${g.online ? onlineTotalsHTML() : ''}</div>`}`;
   if (g.contract && g.phase !== 'bidding') {
     const ct = g.contract;
     const side = B.sideOf(ct.declarer);
@@ -1269,6 +1289,7 @@ function explainHTML() {
   </div>`;
 }
 const ICONS = {
+  net: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.8 2.6 4 5.7 4 9s-1.200 6.400-4 9c-2.800-2.600-4-5.700-4-9s1.200-6.400 4-9z"/></svg>',
   hint: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.6 10.8c.6.5 1 1.2 1 2V17h5.2v-1.2c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></svg>',
   undo: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg>',
   last: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="9" height="13" rx="2"/><path d="M12 8l5-2 4 12-5 2"/></svg>',
@@ -1286,13 +1307,16 @@ function actionsHTML() {
   // téléphone : les enchères et leurs explications s'ouvrent par-dessus le tapis
   const more = tel() ? `<button class="btn ${panelOpen ? 'on' : ''}" data-act="details">${ICONS.list}${g.mission ? 'Mission' : g.mini ? 'Leçon' : 'Enchères'}</button>` : '';
   if (g.phase === 'mini') return `<button class="btn gold" data-act="hint">${ICONS.hint}Conseil</button>${more}`;
-  if (g.phase === 'bidding') return `<button class="btn gold" data-act="hint">${ICONS.hint}Conseil</button><button class="btn" data-act="undo" ${canUndo ? '' : 'disabled'}>${ICONS.undo}Annuler</button>${more}`;
+  // en ligne : ni « Annuler » ni « Réclamer », on joue à plusieurs
+  const undoBtn = g.online ? '' : `<button class="btn" data-act="undo" ${canUndo ? '' : 'disabled'}>${ICONS.undo}Annuler</button>`;
+  if (g.phase === 'bidding') return `<button class="btn gold" data-act="hint">${ICONS.hint}Conseil</button>${undoBtn}${more}`;
   if (g.phase === 'play') {
     const canClaim = B.sideOf(p.declarer) === 0;
-    return `<button class="btn gold" data-act="hint">${ICONS.hint}Conseil</button><button class="btn" data-act="undo" ${canUndo ? '' : 'disabled'}>${ICONS.undo}Annuler</button>
+    return `<button class="btn gold" data-act="hint">${ICONS.hint}Conseil</button>${undoBtn}
       <button class="btn" data-act="last" ${p.tricks.length ? '' : 'disabled'}>${ICONS.last}Dernier pli</button>
-      <button class="btn" data-act="claim" ${canClaim ? '' : 'disabled'}>${ICONS.claim}Réclamer</button>${more}`;
+      ${g.online ? '' : `<button class="btn" data-act="claim" ${canClaim ? '' : 'disabled'}>${ICONS.claim}Réclamer</button>`}${more}`;
   }
+  if (g.online) return `${onlineReadyBtn('style="grid-column:1/-1"')}${more}`;
   if (g.mission) return `<button class="btn primary" data-act="go:missions" style="grid-column:1/-1">Les missions</button>${more}`;
   if (g.learn) return `<button class="btn primary" data-act="learn-next" style="grid-column:1/-1">Donne suivante</button>${more}`;
   return `<button class="btn primary" data-act="new" style="grid-column:1/-1">Donne suivante</button>${more}`;
@@ -1313,13 +1337,13 @@ function endScreenHTML() {
     res += `<div style="font-size:21px;color:var(--ink);font-weight:700;margin-top:4px">${contractHTML(ct)} joué par ${who} : ${r.tricks} pli${r.tricks > 1 ? 's' : ''}${g.play && g.play.claimed ? ' (dont ' + g.play.claimed + ' réclamés)' : ''}</div>`;
   }
   let quip = '';
-  if (!r.passed) {
+  if (!r.passed && !g.online) {
     const win = r.ns > 0;   // « vous » gagnez la donne : votre camp marque les points
     const pa = perso(0), op = perso(g.board % 2 ? 1 : 3);
     const line = (q, txt, who) => `<div class="quip">${B.avatarSVG(q)}<div><b>${q.name}</b> <small>${who}</small><br>« ${txt} »</div></div>`;
     quip = `<div class="quips">${line(pa, win ? pa.avecGagne : pa.avecPerd, 'votre partenaire')}${line(op, win ? op.perd : op.gagne, 'adversaire')}</div>`;
   }
-  ensureAnalysis();
+  if (!g.online) ensureAnalysis();
   const scoreTxt = r.passed ? '' : `<div class="score">Marque : Nord-Sud <b>${r.ns > 0 ? '+' : ''}${r.ns}</b> · Est-Ouest <b>${r.ns < 0 ? '+' : ''}${-r.ns}</b></div>`;
   const h = g.hands;
   const hbox = (s, cls2) => `<div class="h ${cls2}"><div class="nm">${seatName(s)} <span class="pt">${B.hcp(h[s])} H</span></div>${handText(h[s])}</div>`;
@@ -1332,12 +1356,12 @@ function endScreenHTML() {
   return `<div class="end"><div class="box">
     <div class="res ${cls}">${res}</div>${scoreTxt}${quip}
     ${g.learn ? `<button class="btn green mi-comment" data-act="comment">${ICONS.book}Lire le commentaire de la donne</button>` : ''}
-    <div class="an-status">${anStatusHTML()}</div>
+    ${g.online ? `<div class="on-totals">${onlineTotalsHTML()}</div>` : `<div class="an-status">${anStatusHTML()}</div>`}
     <div class="compass">${hbox(0, 'hn')}${hbox(3, 'hw')}<div class="mid">${boardLabel(g)}<br>Donneur : ${seatName(g.dealer)}</div>${hbox(1, 'he')}${hbox(2, 'hs')}</div>
     ${tricks}
-    <div class="btns"><button class="btn primary" data-act="${g.learn ? 'learn-next' : 'new'}">Donne suivante</button>
+    <div class="btns">${g.online ? onlineReadyBtn('') : `<button class="btn primary" data-act="${g.learn ? 'learn-next' : 'new'}">Donne suivante</button>
       <button class="btn" data-act="replay">Rejouer cette donne</button>
-      <button class="btn" data-act="undo" ${g.undo.length ? '' : 'disabled'}>${ICONS.undo}Annuler la dernière carte</button></div>
+      <button class="btn" data-act="undo" ${g.undo.length ? '' : 'disabled'}>${ICONS.undo}Annuler la dernière carte</button>`}</div>
   </div></div>`;
 }
 
@@ -1549,7 +1573,7 @@ function seg(key, opts) {
 }
 function renderSettings() {
   $app.innerHTML = `<div class="page"><div class="inner">
-    <button class="btn back" data-act="${G.game && G.game.phase !== 'end' ? 'resume' : 'go:home'}">← Retour</button>
+    <button class="btn back" data-act="${backAct()}">← Retour</button>
     <h1>Réglages</h1>
     <div class="setting"><div class="lbl">Votre portrait<small>Votre photo (normale ou avec un effet rigolo), votre prénom et votre situation.</small></div><button class="btn me-btn" data-act="profil">${meAvatar()}Modifier</button></div>
     <div class="setting"><div class="lbl">Taille des cartes<small>« Très grandes » utilise toute la place disponible.</small></div>${seg('cardSize', [['normal', 'Grandes'], ['grand', 'Très grandes']])}</div>
@@ -1973,10 +1997,326 @@ function renderReview() {
   t.style.setProperty('--cwT', Math.max(34, Math.min(78, free / (1.42 * 2.1), wide)) + 'px');
 }
 
+/* ---------- Jeu en ligne : le serveur distribue et arbitre, l'appli montre ce qu'il envoie ---------- */
+// Chaque joueur se voit toujours en bas (Sud), son partenaire en haut : tout est tourné à l'affichage.
+const ONLINE_URL = ['127.0.0.1', 'localhost'].includes(location.hostname) ? `ws://${location.hostname}:8770/ws` : '';
+const TABLE_KEY = 'bridge-marianne-table';
+const savedTable = () => { try { return JSON.parse(localStorage.getItem(TABLE_KEY)); } catch (e) { return null; } };
+const forgetTable = () => { try { localStorage.removeItem(TABLE_KEY); } catch (e) { /* stockage indisponible */ } };
+const codeTxt = c => c.slice(0, 2) + ' ' + c.slice(2);
+const onlineForm = { code: '' };
+const rotOf = me => (2 - me + 4) % 4;
+function onlinePerso(s) {
+  const v = ON.v, abs = (s - rotOf(v.me) + 4) % 4;
+  return playerCard(v.players[abs], abs);
+}
+function playerCard(pl, abs) {
+  if (pl.kind === 'robot') return B.PERSOS[pl.perso];
+  if (pl.kind === 'human') return { human: true, name: esc(pl.name), title: esc(pl.sit), online: pl.online, ready: pl.ready, photo: ON.photos[abs], letter: pl.name.charAt(0).toUpperCase(), av: {} };
+  return { human: true, name: 'Place libre', title: '', online: true, letter: '?', av: {} };
+}
+function avatarOf(q) {
+  if (!q.human) return B.avatarSVG(q);
+  if (q.photo) return `<img class="av" src="${esc(q.photo)}" alt="">`;
+  return `<svg class="av" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="50" fill="#2f5d9e"/><text x="50" y="68" text-anchor="middle" font-size="52" font-weight="800" fill="#fff">${esc(q.letter || '?')}</text></svg>`;
+}
+const onSend = o => { if (ON && ON.ws && ON.ws.readyState === 1) ON.ws.send(JSON.stringify(o)); };
+function banner(on) {
+  let b = document.getElementById('on-banner');
+  if (!on) { if (b) b.remove(); return; }
+  if (b) return;
+  b = document.createElement('div');
+  b.id = 'on-banner';
+  b.textContent = 'Connexion perdue : on se reconnecte…';
+  document.body.appendChild(b);
+}
+const profileMsg = () => ({ name: P.name || '', sit: P.title || '', photo: P.photo && P.photo.length <= 70000 ? P.photo : null });
+function onlineEnter(first, saved) {
+  if (ON) return;
+  cancelTimers();
+  ON = { ws: null, code: saved ? saved.code : null, token: saved ? saved.token : null, seat: -1, solo: G.game, v: null, queue: [], busy: false, photos: [null, null, null, null], tries: 0, timer: null, first, hiddenAt: 0, myTurn: false };
+  G.game = null;
+  onlineConnect();
+}
+function onlineConnect() {
+  if (!ON) return;
+  clearTimeout(ON.timer);
+  if (ON.ws) { const old = ON.ws; ON.ws = null; try { old.close(); } catch (e) { /* déjà fermée */ } }
+  let ws;
+  try { ws = new WebSocket(ONLINE_URL); } catch (e) { onlineLost(); return; }
+  ON.ws = ws;
+  ws.onopen = () => {
+    if (!ON || ON.ws !== ws) return;
+    ON.tries = 0;
+    banner(false);
+    ws.send(JSON.stringify(ON.token ? { t: 'resume', code: ON.code, token: ON.token } : ON.first));
+  };
+  ws.onmessage = e => { if (ON && ON.ws === ws) onlineMsg(JSON.parse(e.data)); };
+  ws.onclose = () => { if (ON && ON.ws === ws) { ON.ws = null; onlineLost(); } };
+}
+function onlineLost() {
+  if (!ON) return;
+  if (!ON.v) { onlineStop('online'); toast('Impossible de joindre la salle de jeu pour le moment. Vérifiez internet et réessayez.', 4200); return; }
+  banner(true);
+  ON.tries++;
+  ON.timer = setTimeout(onlineConnect, Math.min(10000, 1000 * ON.tries));
+}
+// la tablette se réveille : la connexion est souvent morte sans le dire, on la refait
+function onlineWake() {
+  if (document.hidden) { ON.hiddenAt = Date.now(); return; }
+  if (!ON.ws || ON.ws.readyState > 1 || (ON.hiddenAt && Date.now() - ON.hiddenAt > 3000)) { if (ON.token) onlineConnect(); }
+}
+function onlineStop(to) {
+  if (!ON) return;
+  const o = ON;
+  ON = null;
+  clearTimeout(o.timer);
+  banner(false);
+  closeModal();
+  if (o.ws) { o.ws.onclose = null; try { o.ws.close(); } catch (e) { /* déjà fermée */ } }
+  G.game = o.solo;
+  holdTrick = false; thinking = -1; selected = null; hintCard = null; bidLevel = null; panelOpen = false;
+  cancelTimers();
+  screen = to || 'home';
+  render();
+}
+const ON_ERRORS = { introuvable: 'Aucune table ne porte ce numéro. Vérifiez-le auprès de la personne qui vous a invité.', complete: 'Cette table est déjà complète.', plein: 'La salle de jeu est pleine pour le moment. Réessayez plus tard.', essais: 'Trop de numéros essayés. Réessayez dans quelques minutes.', finie: 'Cette table n\'existe plus : la partie est terminée.' };
+function onlineMsg(m) {
+  if (m.t === 'joined') {
+    ON.code = m.code; ON.token = m.token; ON.seat = m.seat;
+    try { localStorage.setItem(TABLE_KEY, JSON.stringify({ code: m.code, token: m.token })); } catch (e) { /* stockage indisponible */ }
+  } else if (m.t === 'photos') {
+    ON.photos = m.photos;
+    if (screen === 'onlobby' || screen === 'ontour') render();
+  } else if (m.t === 'err') {
+    if (m.code === 'finie') forgetTable();
+    onlineStop('online');
+    toast(ON_ERRORS[m.code] || 'Une erreur est survenue.', 4600);
+  } else if (m.t === 'left') {
+    onlineStop();
+  } else if (m.t === 'hint') {
+    onlineHint(m);
+  } else if (m.t === 'state') {
+    ON.queue.push(m);
+    onlinePump();
+  }
+}
+function onlinePump() {
+  if (!ON || ON.busy || !ON.queue.length) return;
+  // du retard (tablette en veille) : on passe directement au dernier état, sans animation
+  if (ON.queue.length > 2 || document.hidden) { const last = ON.queue.pop(); ON.queue = []; onlineApply(last, true); return; }
+  onlineApply(ON.queue.shift(), false);
+}
+function onlineGame(v, keep) {
+  const rot = rotOf(v.me), odd = rot % 2 === 1, R = s => (s + rot) % 4;
+  const turned = a => { const o = []; a.forEach((x, s) => { o[R(s)] = x; }); return o; };
+  const trickOf = t => ({ leader: R(t.leader), winner: R(t.winner), cards: t.cards.map(x => ({ seat: R(x.seat), card: x.card })) });
+  const hands = v.hands ? turned(v.hands.map(h => Array.isArray(h) ? h : Array(h).fill(-1))) : [[], [], [], []];
+  let play = null;
+  if (v.play) {
+    const p = v.play;
+    play = Object.assign({}, p, { hands, orig: hands, declarer: R(p.declarer), dummy: R(p.dummy), leader: R(p.leader), turn: R(p.turn), won: odd ? [p.won[1], p.won[0]] : p.won.slice(),
+      trick: p.trick.map(x => ({ seat: R(x.seat), card: x.card })), tricks: p.tricks.map(trickOf) });
+  }
+  const res = v.result ? Object.assign({}, v.result, { ns: odd ? -v.result.ns : v.result.ns }) : null;
+  return { online: true, board: v.board, dealer: R(v.dealer), vul: odd ? ({ NS: 'EO', EO: 'NS' }[v.vul] || v.vul) : v.vul, hands, auction: v.auction, phase: v.phase, play,
+    contract: v.contract ? Object.assign({}, v.contract, { declarer: R(v.contract.declarer) }) : null, undo: [], selCall: keep, result: res, recorded: true };
+}
+function onlineThinking(g) {
+  if (g.phase === 'bidding') { const s = (g.dealer + g.auction.length) % 4; return s === 2 ? -1 : s; }
+  if (g.phase !== 'play' || g.play.done || userControls(g.play.turn)) return -1;
+  return g.play.turn === g.play.dummy ? g.play.declarer : g.play.turn;
+}
+function onlineApply(v, silent) {
+  const prev = ON.v, ev = silent ? null : v.ev, side = !['game', 'onlobby', 'ontour', 'online', 'home'].includes(screen);
+  ON.v = v;
+  if (v.phase === 'lobby') { G.game = null; if (!side) { screen = 'onlobby'; render(); } onlinePump(); return; }
+  if (v.phase === 'tour') {
+    G.game = null;
+    if (!side) { if (screen !== 'ontour') snd('select'); screen = 'ontour'; render(); }
+    onlinePump();
+    return;
+  }
+  const fresh = !prev || prev.board !== v.board || !['bidding', 'play', 'end'].includes(prev.phase);
+  const oldG = G.game;
+  const rot = rotOf(v.me);
+  if (fresh) {
+    bidLevel = null; selected = null; hintCard = null; lastPlayed = null; fly = null; newBidIdx = -1; holdTrick = false; oneRow = false; panelOpen = false; shownWon = [0, 0]; ON.myTurn = false;
+    dealAnim = !!(ev && ev.k === 'deal');
+    dummyRevealKey = ev && ev.k === 'deal' ? null : v.board;
+    if (dealAnim) snd('shuffle');
+    if (!side) { clearToast(); closeModal(); }
+  }
+  // la carte part de là où elle est encore affichée
+  if (ev && ev.k === 'card' && screen === 'game' && oldG) fly = anim() ? flyOrigin((ev.seat + rot) % 4, ev.card) : null;
+  const g = onlineGame(v, oldG && !fresh ? oldG.selCall : null);
+  G.game = g;
+  if (!side) screen = 'game';
+  thinking = onlineThinking(g);
+  if (ev && ev.k === 'bid') {
+    g.selCall = g.auction.length - 1;
+    newBidIdx = g.auction.length - 1;
+    snd('bid');
+    if (ev.seat !== v.me) say(nameOf((ev.seat + rot) % 4) + ' : ' + B.sound.callWords(ev.call));
+  }
+  if (ev && ev.k === 'card') { snd('card'); lastPlayed = ev.card; selected = null; hintCard = null; }
+  if (g.phase === 'play' && prev && prev.phase === 'bidding' && !silent) {
+    const ct = g.contract, p = g.play, decl = ct.declarer;
+    for (let i = g.auction.length - 1; i >= 0; i--) if (B.isBid(g.auction[i])) { g.selCall = i; break; }
+    let msg = `Contrat : <b>${contractHTML(ct)}</b> joué par ${nameOf(decl)}.`;
+    if (decl === 2) msg += `<br>Vous jouez aussi les cartes du mort (${nameOf(p.dummy)}).`;
+    else if (p.dummy === 2) msg += `<br>Vous êtes le mort : ${nameOf(decl)} jouera vos cartes.`;
+    else msg += p.leader === 2 ? '<br>C\'est à vous d\'entamer.' : `<br>${nameOf(p.leader)} entame.`;
+    if (!side) toast(msg, 4600);
+  }
+  const mine = g.phase === 'bidding' ? (g.dealer + g.auction.length) % 4 === 2 : g.phase === 'play' && !g.play.done && userControls(g.play.turn);
+  if (mine && !ON.myTurn && !silent) { if (g.phase === 'bidding') bidboxEnter = true; setTimeout(() => snd('turn'), 120); }
+  ON.myTurn = mine;
+  if (side) { onlinePump(); return; }
+  if (ev && ev.k === 'card' && ev.trickDone) {
+    holdTrick = true;
+    ON.busy = true;
+    render();
+    setTimeout(() => {
+      if (!ON) return;
+      collectTrick((ev.winner + rot) % 4, () => {
+        if (!ON) return;
+        holdTrick = false; lastPlayed = null; ON.busy = false;
+        if (screen === 'game') render();
+        onlinePump();
+      });
+    }, delay('trick'));
+    return;
+  }
+  holdTrick = false;
+  render();
+  if (g.phase === 'end' && prev && prev.phase !== 'end' && !silent && !g.result.passed) {
+    const good = g.result.ns > 0;
+    snd(good ? 'success' : 'fail');
+    if (good && anim()) confetti();
+  }
+  onlinePump();
+}
+function onlineHint(m) {
+  const g = G.game, p = g && g.play;
+  if (!p || !userControls(p.turn)) return;
+  hintCard = m.card;
+  if (G.settings.doubleTap) selected = m.card;
+  render();
+  modal(`<h2>Conseil : jouez ${cardTxtHTML(m.card)}${p.turn === p.dummy ? ' (du mort)' : ''}</h2><p>${rich(esc(m.reason))}</p>${ficheBtn('09')}
+    <div class="btns"><button class="btn primary" data-m="play">Jouer cette carte</button><button class="btn" data-m="no">Fermer</button></div>`,
+  v => { if (v === 'play') doPlay(p.turn, m.card); });
+}
+const onlineHomeHTML = () => {
+  if (!ONLINE_URL) return '';
+  const t = savedTable();
+  return `${t ? `<button class="btn primary" data-act="on-back">Retourner à la table n° ${esc(codeTxt(String(t.code)))}</button>` : ''}<button class="btn online-btn" data-act="go:online">${ICONS.net}Jouer en ligne avec des amis</button>`;
+};
+const onlineTotalsHTML = () => `<div class="on-score">Score de la table : votre camp <b>${ON.v.totals[ON.v.me % 2]}</b> · adversaires <b>${ON.v.totals[(ON.v.me + 1) % 2]}</b></div>`;
+function onlineReadyBtn(attrs) {
+  const v = ON.v;
+  if (!v.players[v.me].ready) return `<button class="btn primary" data-act="on-ready" ${attrs}>Donne suivante</button>`;
+  const wait = v.players.filter((p, s) => p.kind === 'human' && p.online && !p.ready && s !== v.me).map(p => esc(p.name));
+  return `<button class="btn" disabled ${attrs}>En attente de ${wait.join(', ') || 'la distribution'}…</button>`;
+}
+function renderOnline() {
+  $app.innerHTML = `<div class="page"><div class="inner on-form">
+    <button class="btn back" data-act="go:home">← Accueil</button>
+    <h1>Jouer en ligne</h1>
+    <p>Jouez avec vos amis, chacun sur sa tablette ou son téléphone. Les places libres sont prises par les robots.</p>
+    <label for="on-name">Votre prénom</label>
+    <input id="on-name" maxlength="24" autocomplete="given-name" value="${esc(P.name || '')}">
+    <h2>Inviter des amis</h2>
+    <button class="btn primary" data-act="on-create">Créer une table</button>
+    <h2>Vous avez reçu un numéro de table ?</h2>
+    <label for="on-code">Numéro de la table (5 chiffres)</label>
+    <input id="on-code" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" value="${esc(onlineForm.code)}">
+    <button class="btn gold" data-act="on-join">Rejoindre la table</button>
+  </div></div>`;
+}
+function onlineName() {
+  const n = document.getElementById('on-name').value.trim();
+  if (!n) { toast('Indiquez votre prénom : il s\'affichera à la table.'); return null; }
+  if (n !== P.name) { P.name = n; saveProfile(); }
+  return n;
+}
+function onlineCreate() { const name = onlineName(); if (name) onlineEnter(Object.assign(profileMsg(), { t: 'create' })); }
+function onlineJoin() {
+  const name = onlineName();
+  if (!name) return;
+  const code = document.getElementById('on-code').value.replace(/\D/g, '');
+  onlineForm.code = code;
+  if (code.length !== 5) { toast('Le numéro de la table a 5 chiffres.'); return; }
+  onlineEnter(Object.assign(profileMsg(), { t: 'join', code }));
+}
+function onlineBack() { const t = savedTable(); if (t) onlineEnter(null, t); }
+function onlineMenu() {
+  modal(`<h2>Menu</h2><div class="menu-list">
+    <button class="btn" data-m="fiches">Les fiches du cours</button>
+    <button class="btn" data-m="persos">Les personnages</button>
+    <button class="btn" data-m="help">Comment jouer</button>
+    <button class="btn" data-m="settings">Réglages</button>
+    <button class="btn" data-m="leave">Quitter la table</button>
+    <button class="btn primary" data-m="close">Fermer</button></div>`, v => {
+    if (v === 'close') return;
+    if (v === 'leave') onlineLeave();
+    else go(v);
+  });
+}
+function onlineLeave() {
+  modal(`<h2>Quitter la table ?</h2><p>Un robot prendra votre place.</p>
+    <div class="btns"><button class="btn primary" data-m="yes">Quitter</button><button class="btn" data-m="no">Rester</button></div>`, r => {
+    if (r !== 'yes') return;
+    onSend({ t: 'leave' });
+    forgetTable();
+    onlineStop();
+  });
+}
+async function onlineInvite() {
+  const url = location.origin + location.pathname + '?table=' + ON.code, text = `Venez jouer au bridge avec moi ! Table n° ${ON.code}`;
+  if (navigator.share) { try { await navigator.share({ title: 'Le Bridge de Marianne', text, url }); } catch (e) { /* partage annulé */ } return; }
+  try { await navigator.clipboard.writeText(`${text} : ${url}`); toast('Invitation copiée : collez-la dans un message.'); } catch (e) { toast(`Donnez ce numéro à vos amis : <b>${ON.code}</b>`, 4200); }
+}
+function renderLobby() {
+  const v = ON.v, code = codeTxt(v.code);
+  const seat = (s, pos) => {
+    const pl = v.players[s], q = playerCard(pl, s), mine = s === v.me;
+    if (pl.kind === 'empty') return tourSeat(pos, 0, '<div class="on-empty"></div>', 'Place libre', SEATN[s], `Un robot jouera ici si personne ne vient.<button class="btn on-sit" data-act="on-sit:${s}">M'asseoir ici</button>`, false);
+    const role = SEATN[s] + (q.title ? ' · ' + q.title : '') + (s === (v.me + 2) % 4 ? ' · votre partenaire' : '');
+    return tourSeat(`${pos} ${mine ? 'mine' : ''}`, 0, avatarOf(q), q.name, role, mine ? 'C\'est vous.' : q.online ? 'Est à table.' : 'Est momentanément hors ligne.', false);
+  };
+  const host = v.players[v.hostSeat];
+  $app.innerHTML = `<div class="tour"><div class="tour-in">
+    <h1>Table n° <span class="on-code">${code}</span></h1>
+    <div class="on-sub">Donnez ce numéro à vos amis pour qu'ils vous rejoignent.</div>
+    <button class="btn gold on-invite" data-act="on-invite">Inviter par message</button>
+    <div class="tour-grid">${seat(0, 'n')}${seat(3, 'w')}${seat(1, 'e')}${seat(2, 's')}</div>
+    ${v.host ? '<button class="btn primary tour-go" data-act="on-start">Commencer la partie</button>' : `<div class="on-sub">La partie commencera quand ${host && host.kind === 'human' ? esc(host.name) : 'l\'organisateur'} la lancera.</div>`}
+    <button class="btn on-leave" data-act="on-leave">Quitter la table</button>
+  </div></div>`;
+}
+function renderOnTour() {
+  const v = ON.v, rot = rotOf(v.me);
+  const seat = (s, pos, i, role) => {
+    const abs = (s - rot + 4) % 4, q = playerCard(v.players[abs], abs);
+    if (!q.human) return tourSeat(pos, i, B.avatarSVG(q), q.name, `${role} · ${q.title}`, `« ${q.hello} »`, !!q.av.chef);
+    return tourSeat(pos, i, avatarOf(q), q.name, role + (q.title ? ' · ' + q.title : ''), s === 2 ? 'C\'est vous !' : q.online ? 'Bonjour à tous !' : 'Est momentanément hors ligne.', false, q.ready ? '<span class="on-ok">✓ Prêt</span>' : '');
+  };
+  const ready = v.players[v.me].ready;
+  const wait = v.players.filter((p, s) => p.kind === 'human' && p.online && !p.ready && s !== v.me).map(p => esc(p.name));
+  $app.innerHTML = `<div class="tour"><div class="tour-in">
+    <h1>Tour de table</h1>
+    <div class="tour-grid">${seat(0, 'n', 0, 'votre partenaire')}${seat(3, 'w', 0, 'adversaire')}${seat(1, 'e', 0, 'adversaire')}${seat(2, 's', 0, 'Vous')}</div>
+    ${ready ? `<button class="btn tour-go" disabled>En attente de ${wait.join(', ') || 'la distribution'}…</button>` : '<button class="btn primary tour-go" data-act="on-ready">À table !</button>'}
+  </div></div>`;
+}
+const urlTable = new URLSearchParams(location.search).get('table');
+if (ONLINE_URL && /^\d{5}$/.test(urlTable || '')) { onlineForm.code = urlTable; screen = 'online'; }
+
 /* ---------- Gestion des touchers ---------- */
 $app.addEventListener('click', e => {
   const pe = e.target.closest('[data-perso]');
-  if (pe && screen === 'game') { showPerso(+pe.dataset.perso); return; }
+  if (pe && screen === 'game') { if (!(G.game.online && perso(+pe.dataset.perso).human)) showPerso(+pe.dataset.perso); return; }
   if (e.target.closest('[data-me]') && screen === 'game') { openProfile(); return; }
   const cardEl = e.target.closest('.card[data-c]');
   if (cardEl && screen === 'game') {
@@ -1994,6 +2334,14 @@ $app.addEventListener('click', e => {
   if (k === 'new') newDeal(false);
   else if (k === 'replay') confirmReplay();
   else if (k === 'resume') go('game');
+  else if (k === 'on-create') onlineCreate();
+  else if (k === 'on-join') onlineJoin();
+  else if (k === 'on-back') onlineBack();
+  else if (k === 'on-sit') onSend({ t: 'sit', seat: +v });
+  else if (k === 'on-start') onSend({ t: 'start' });
+  else if (k === 'on-ready') onSend({ t: 'ready' });
+  else if (k === 'on-leave') onlineLeave();
+  else if (k === 'on-invite') onlineInvite();
   else if (k === 'tour-go') { if ('speechSynthesis' in window) speechSynthesis.cancel(); beginDeal(false); }
   else if (k === 'go') go(v);
   else if (k === 'menu') menu();
@@ -2071,7 +2419,7 @@ function showPerso(s) {
 // le son ne peut démarrer qu'après un toucher (règle de l'iPad)
 ['touchend', 'click'].forEach(ev => document.addEventListener(ev, () => { if (B.sound) B.sound.unlock(); }, { capture: true, passive: true }));
 if (B.sound) B.sound.configure(G.settings);
-document.addEventListener('visibilitychange', () => { if (!document.hidden && screen === 'game') { cancelTimers(); dealing = false; holdTrick = false; thinking = -1; render(); step(); } });
+document.addEventListener('visibilitychange', () => { if (ON) { onlineWake(); return; } if (!document.hidden && screen === 'game') { cancelTimers(); dealing = false; holdTrick = false; thinking = -1; render(); step(); } });
 
 render();
 })();
