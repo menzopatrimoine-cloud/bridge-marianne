@@ -77,7 +77,7 @@ const CHAPITRES = [
   { id: 'c2', titre: 'Ouvrir de 1 SA ou de 2 SA', fiches: ['02', '11'], type: 'bid',
     points: ['1 SA : 15 à 17 points H, main régulière (4-3-3-3, 4-4-3-2 ou 5-3-3-2), sans majeure de 5 cartes.', '2 SA : 20 ou 21 points H, main régulière.'] },
   { id: 'c3', titre: 'Répondre à l\'ouverture', fiches: ['03', '04', '15'], type: 'bid',
-    points: ['Jusqu\'à 5 points : on passe (voir aussi la règle des 9).', 'À partir de 6 points : on soutient, on nomme une couleur ou on dit Sans-Atout.', 'Sur une majeure, le soutien passe d\'abord (3 cartes). Sur une mineure, on cherche d\'abord une majeure.'] },
+    points: ['Jusqu\'à 5 points, on passe, sauf si points H + cartes de la couleur font 9 ou plus (règle des 9) : on annonce alors cette couleur au palier de 1.', 'À partir de 6 points : on soutient, on nomme une couleur ou on dit Sans-Atout.', 'Sur une majeure, le soutien passe d\'abord (3 cartes). Sur une mineure, on cherche d\'abord une majeure.'] },
   { id: 'c4', titre: 'La 2e enchère de l\'ouvreur', fiches: ['05'], type: 'bid',
     points: ['Si le partenaire a changé de couleur, il faut reparler.', 'Priorité à un contrat à 8 atouts en majeure.', 'On additionne les points du camp pour décider : passer, proposer ou conclure à la manche.'] },
   { id: 'c5', titre: 'Le Stayman', fiches: ['11', '14'], type: 'bid',

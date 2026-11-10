@@ -207,6 +207,12 @@ function blackwoodM(trumpS) {
       '. Réponses : 5♣ = 0 ou 3 clés, 5♦ = 1 ou 4, 5♥ = 2 sans la Dame d\'atout, 5♠ = 2 avec la Dame.' });
 }
 
+// Règle des 9 (fiche 15) : main très faible (moins de 6 points HL) et points H + cartes de la couleur ≥ 9 : on annonce cette couleur au palier de 1
+const nine = (h, t) => HL(h) <= 5 && L(h, t) >= 4 && hcp(h) + L(h, t) >= 9;
+const nineM = (d, t) => M('Réponse avec la règle des 9', { pts: [0, 5], unit: 'HL', len: ln({ [d]: [4, 13] }), forcing: 1, fiche: '15',
+  text: `Main très faible, mais points H + cartes à ${nm(t)} font 9 ou plus : on annonce la couleur au palier de 1.` });
+const PASSE9 = 'Moins de 6 points, et la règle des 9 n\'est pas remplie (points H + cartes de la couleur en dessous de 9) : pas de réponse.';
+
 function respMajor(c) {
   const d = c.seq[0][1], s = DEN_SUIT[d];
   const fit = h => L(h, s) >= 3, p = h => HLD(h, s);
@@ -218,8 +224,8 @@ function respMajor(c) {
     text: `Au moins 3 cartes à ${nm(s)}, 11 ou 12 points HLD. Proposition de manche : l'ouvreur passe s'il est minimum.` }), h => fit(h) && p(h) >= 11));
   o.push(opt('2' + d, M('Soutien simple (+)', { pts: [6, 10], unit: 'HLD', len: ln({ [d]: [3, 13] }), fiche: '03',
     text: `Au moins 3 cartes à ${nm(s)}, 6 à 10 points HLD.` }), h => fit(h) && p(h) >= 6));
-  if (s === 1) o.push(opt('1S', M('Changement de couleur', { pts: [6, 37], unit: 'HL', len: ln({ S: [4, 13], H: [0, 2] }), forcing: 1, fiche: '03',
-    text: 'Au moins 4 piques et 6 points HL ou plus, pas de fit à Cœur. Forcing : l\'ouvreur doit reparler.' }), h => !fit(h) && L(h, 0) >= 4 && HL(h) >= 6));
+  if (s === 1) o.push(opt('1S', M('Changement de couleur', { pts: [5, 37], unit: 'HL', len: ln({ S: [4, 13], H: [0, 2] }), forcing: 1, fiche: '03',
+    text: 'Au moins 4 piques et 6 points HL ou plus (ou main très faible avec la règle des 9), pas de fit à Cœur. Forcing : l\'ouvreur doit reparler.' }), h => !fit(h) && L(h, 0) >= 4 && HL(h) >= 6));
   for (const nd of ['C', 'D', 'H']) {
     if (nd === d || (nd === 'H' && s !== 0)) continue;
     const ns = DEN_SUIT[nd], min = nd === 'H' ? 5 : 4;
@@ -234,7 +240,8 @@ function respMajor(c) {
     text: `11 ou 12 points H, main régulière, pas de fit à ${nm(s)}. Proposition de manche.` }), h => !fit(h) && isRegular(h) && hcp(h) >= 11 && hcp(h) <= 12 && no4S(h)));
   o.push(opt('1N', M('1SA', { pts: [6, 10], unit: 'HL', len: ln(s === 1 ? { H: [0, 2], S: [0, 3] } : { S: [0, 2] }), fiche: '03',
     text: `6 à 10 points HL, pas de fit à ${nm(s)}` + (s === 1 ? ', pas 4 piques.' : '.') }), h => !fit(h) && HL(h) >= 6 && HL(h) <= 10 && no4S(h)));
-  o.push(opt('P', M('Passe', { pts: [0, 5], unit: 'HL', fiche: '03', text: 'Moins de 6 points : pas de réponse.' }), h => (fit(h) ? p(h) : HL(h)) <= 5));
+  if (s === 1) o.push(opt('1S', nineM('S', 0), h => nine(h, 0)));
+  o.push(opt('P', M('Passe', { pts: [0, 5], unit: 'HL', fiche: '03', text: s === 1 ? PASSE9 : 'Moins de 6 points : pas de réponse.' }), h => (fit(h) ? p(h) : HL(h)) <= 5));
   return o;
 }
 
@@ -244,12 +251,12 @@ function respMinor(c) {
   const noMaj = h => maj(h) < 0;
   const noShort = h => lens(h).every(n => n >= 2);
   const o = [];
-  o.push(opt('1H', M('Changement de couleur', { pts: [6, 37], unit: 'HL', len: ln({ H: [4, 13] }), forcing: 1, fiche: '03',
-    text: 'Au moins 4 cœurs et 6 points HL ou plus. Forcing : l\'ouvreur doit reparler.' }), h => maj(h) === 1 && HL(h) >= 6));
-  o.push(opt('1S', M('Changement de couleur', { pts: [6, 37], unit: 'HL', len: ln({ S: [4, 13] }), forcing: 1, fiche: '03',
-    text: 'Au moins 4 piques et 6 points HL ou plus. Forcing : l\'ouvreur doit reparler.' }), h => maj(h) === 0 && HL(h) >= 6));
-  if (d === 'C') o.push(opt('1D', M('Changement de couleur', { pts: [6, 37], unit: 'HL', len: ln({ D: [4, 13], H: [0, 3], S: [0, 3] }), forcing: 1, fiche: '03',
-    text: 'Au moins 4 carreaux, 6 points HL ou plus, pas de Majeure de 4 cartes. Forcing.' }), h => noMaj(h) && L(h, 2) >= 4 && HL(h) >= 6));
+  o.push(opt('1H', M('Changement de couleur', { pts: [5, 37], unit: 'HL', len: ln({ H: [4, 13] }), forcing: 1, fiche: '03',
+    text: 'Au moins 4 cœurs et 6 points HL ou plus (ou main très faible avec la règle des 9). Forcing : l\'ouvreur doit reparler.' }), h => maj(h) === 1 && HL(h) >= 6));
+  o.push(opt('1S', M('Changement de couleur', { pts: [5, 37], unit: 'HL', len: ln({ S: [4, 13] }), forcing: 1, fiche: '03',
+    text: 'Au moins 4 piques et 6 points HL ou plus (ou main très faible avec la règle des 9). Forcing : l\'ouvreur doit reparler.' }), h => maj(h) === 0 && HL(h) >= 6));
+  if (d === 'C') o.push(opt('1D', M('Changement de couleur', { pts: [5, 37], unit: 'HL', len: ln({ D: [4, 13], H: [0, 3], S: [0, 3] }), forcing: 1, fiche: '03',
+    text: 'Au moins 4 carreaux, 6 points HL ou plus (ou main très faible avec la règle des 9), pas de Majeure de 4 cartes. Forcing.' }), h => noMaj(h) && L(h, 2) >= 4 && HL(h) >= 6));
   if (d === 'D') o.push(opt('2C', M('Changement de couleur au palier de 2', { pts: [11, 37], unit: 'HL', len: ln({ C: [4, 13], H: [0, 3], S: [0, 3] }), forcing: 1, fiche: '03',
     text: 'Au moins 4 trèfles (souvent 5), 11 points HL ou plus, pas de Majeure de 4 cartes. Forcing.' }), h => noMaj(h) && L(h, 3) >= 4 && HL(h) >= 11));
   o.push(opt('3N', M('3SA', { pts: [13, 15], unit: 'H', len: ln({ H: [0, 3], S: [0, 3] }), fiche: '03', conclusion: true,
@@ -264,7 +271,11 @@ function respMinor(c) {
     text: `Au moins 5 cartes à ${nm(s)}, 6 à 10 points.` }), h => noMaj(h) && L(h, s) >= 5 && HL(h) >= 6 && HL(h) <= 10));
   o.push(opt('1N', null, h => noMaj(h) && HL(h) >= 6 && HL(h) <= 10));
   o[o.length - 1].m = o.find(x => x.call === '1N').m;
-  o.push(opt('P', M('Passe', { pts: [0, 5], unit: 'HL', fiche: '03', text: 'Moins de 6 points : pas de réponse.' }), h => HL(h) <= 5));
+  o.push(opt('1H', nineM('H', 1), h => nine(h, 1) && maj(h) === 1));
+  o.push(opt('1S', nineM('S', 0), h => nine(h, 0)));
+  o.push(opt('1H', nineM('H', 1), h => nine(h, 1)));
+  if (d === 'C') o.push(opt('1D', nineM('D', 2), h => nine(h, 2)));
+  o.push(opt('P', M('Passe', { pts: [0, 5], unit: 'HL', fiche: '03', text: PASSE9 }), h => HL(h) <= 5));
   return o;
 }
 
