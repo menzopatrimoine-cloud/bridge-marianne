@@ -17,7 +17,7 @@ const FICHES = {
   '06': 'Ouvertures faibles 2♥ ou 2♠', '07': 'Ouvertures fortes, tableau', '08': 'Ouvertures fortes, résumé',
   '09': 'Jeu de la carte', '10': 'Interventions en 2ème position', '11': 'Ouverture 1 SA et Stayman',
   '12': 'Barrages niveaux 3 et 4', '13': 'Réponses au contre d\'intervention',
-  '14': 'Après ouverture 1 SA : Stayman et Texas', '15': 'Règle des 9', '16': 'Table de décision',
+  '14': 'Après ouverture 1 SA : Stayman et Texas', '15': 'Règle des 9', '16': 'Table de décision', '17': 'Intervention sur 1 SA : le Landy',
 };
 
 /* ---------- Sens d'une enchère ---------- */
@@ -289,12 +289,16 @@ function resp1N(c) {
   o.push(opt('2C', M('Stayman', { pts: [8, 37], unit: 'HL', forcing: 1, alert: true, fiche: '11',
     text: 'Au moins 8 points HL et une Majeure de 4 cartes (ou 5-4 en Majeures). Demande à l\'ouvreur s\'il a 4 cartes en Majeure.' }),
     h => HL(h) >= 8 && (L(h, 0) === 4 || L(h, 1) === 4) && L(h, 0) <= 5 && L(h, 1) <= 5 && B.shape(h) !== '4333'));
-  o.push(opt('2S', M('Texas Trèfle', { pts: [0, 7], unit: 'HL', len: ln({ C: [6, 13] }), forcing: 1, alert: true, fiche: '14',
-    text: 'Jeu faible (0 à 7 points) avec au moins 6 trèfles. Demande à l\'ouvreur de dire 3♣.' }),
-    h => HL(h) <= 7 && L(h, 3) >= 6 && L(h, 3) >= L(h, 2)));
-  o.push(opt('3C', M('Texas Carreau', { pts: [0, 7], unit: 'HL', len: ln({ D: [6, 13] }), forcing: 1, alert: true, fiche: '14',
-    text: 'Jeu faible (0 à 7 points) avec au moins 6 carreaux. Demande à l\'ouvreur de dire 3♦.' }),
-    h => HL(h) <= 7 && L(h, 2) >= 6));
+  // Texas mineur : jeu faible (8 points ou moins), 9 à 15 points avec une courte, ou 15 points et plus (fiche 14, page 3)
+  const courte = h => lens(h).some(n => n <= 1);
+  const texMin = (h, t) => L(h, t) >= 6 && (HL(h) <= 8 || (hcp(h) >= 9 && hcp(h) <= 14 && courte(h)) || hcp(h) >= 15);
+  const suiteMin = 'Ensuite : passe avec 8 points ou moins ; avec 9 à 15 points et un singleton, il montre sa couleur courte ; avec 15 points ou plus, 4SA.';
+  o.push(opt('2S', M('Texas Trèfle', { pts: [0, 37], unit: 'H', len: ln({ C: [6, 13] }), forcing: 1, alert: true, fiche: '14',
+    text: 'Au moins 6 trèfles. Demande à l\'ouvreur de dire 3♣. ' + suiteMin }),
+    h => texMin(h, 3) && L(h, 3) >= L(h, 2)));
+  o.push(opt('3C', M('Texas Carreau', { pts: [0, 37], unit: 'H', len: ln({ D: [6, 13] }), forcing: 1, alert: true, fiche: '14',
+    text: 'Au moins 6 carreaux. Demande à l\'ouvreur de dire 3♦. ' + suiteMin }),
+    h => texMin(h, 2)));
   o.push(opt('6N', M('Petit chelem à Sans-Atout', { pts: [18, 37], unit: 'H', fiche: '11', conclusion: true, text: '18 points H et plus : le camp a au moins 33 points.' }), h => hcp(h) >= 18));
   o.push(opt('4N', M('Proposition de chelem (quantitatif)', { pts: [15, 17], unit: 'HL', fiche: '11',
     text: '15 à 17 points, pas de Majeure 4e. Avec 17 points, l\'ouvreur répond comme au Blackwood (nombre d\'As) ; sinon il passe.' }), h => HL(h) >= 15));
@@ -658,16 +662,31 @@ function responder1NCont(c) {
   if ((m = /^1N P (2D|2H) P (2H|2S) P$/.exec(s))) {
     const t = m[1] === '2D' ? 1 : 0, d = dn(t);
     return [
-      opt('4N', blackwoodM(t), h => L(h, t) >= 6 && HLD(h, t) >= 16),
-      opt('4' + d, M('Manche : 6 cartes', { pts: [10, 15], unit: 'HL', len: ln({ [d]: [6, 13] }), fiche: '04', conclusion: true, text: `Au moins 6 cartes à ${nm(t)} et 10 points ou plus.` }), h => L(h, t) >= 6 && HL(h) >= 10),
-      opt('3N', M('3SA : 5 cartes', { pts: [10, 14], unit: 'HL', len: ln({ [d]: [5, 5] }), fiche: '04', text: `5 cartes à ${nm(t)} et 10 à 14 points : l'ouvreur choisit 3SA ou 4${sym(t)}.` }), h => HL(h) >= 10),
+      opt('4N', blackwoodM(t), h => HL(h) >= 16),
+      opt('4' + d, M('Manche : 6 cartes', { pts: [10, 15], unit: 'HL', len: ln({ [d]: [6, 13] }), fiche: '14', conclusion: true, text: `Au moins 6 cartes à ${nm(t)} et 10 points ou plus : espoir de manche, ici à la couleur.` }), h => L(h, t) >= 6 && HL(h) >= 10),
+      opt('3N', M('3SA : 5 cartes', { pts: [10, 15], unit: 'HL', len: ln({ [d]: [5, 5] }), fiche: '14', text: `5 cartes à ${nm(t)} et 10 à 15 points : espoir de manche, l'ouvreur choisit 3SA ou 4${sym(t)}.` }), h => HL(h) >= 10),
       opt('3' + d, M('Proposition : 6 cartes', { pts: [8, 9], unit: 'HL', len: ln({ [d]: [6, 13] }), fiche: '04', text: `6 cartes à ${nm(t)}, 8 ou 9 points.` }), h => L(h, t) >= 6 && HL(h) >= 8),
-      opt('2N', M('Proposition : 5 cartes', { pts: [8, 9], unit: 'HL', len: ln({ [d]: [5, 5] }), fiche: '04', text: `5 cartes à ${nm(t)}, 8 ou 9 points.` }), h => HL(h) >= 8),
-      opt('P', M('Passe', { pts: [0, 7], unit: 'HL', len: ln({ [d]: [5, 13] }), fiche: '04', text: `Jeu faible : on joue 2${sym(t)}.` }), () => true)];
+      opt('2N', M('2SA : 5 cartes', { pts: [8, 9], unit: 'HL', len: ln({ [d]: [5, 5] }), fiche: '14', text: `5 cartes à ${nm(t)}, 8 ou 9 points : pas d'espoir de manche, préférence pour le jeu à Sans-Atout.` }), h => HL(h) >= 8),
+      opt('P', M('Passe', { pts: [0, 7], unit: 'HL', len: ln({ [d]: [5, 13] }), fiche: '14', text: `Camp faible : préférence pour le jeu à l'atout, on joue 2${sym(t)}.` }), () => true)];
   }
-  if (/^1N P 2S P 3C P$/.test(s)) return [opt('P', M('Passe', { len: ln({ C: [6, 13] }), fiche: '14', text: 'Le répondant a des trèfles : on joue 3♣.' }), () => true)];
-  if (/^1N P 3C P 3D P$/.test(s)) return [opt('P', M('Passe', { len: ln({ D: [6, 13] }), fiche: '14', text: 'Le répondant a des carreaux : on joue 3♦.' }), () => true)];
-  if ((m = /^1N P 4N P (5[CDHS]) P$/.exec(s)) || (m = /^2N P 4N P (5[CDHS]) P$/.exec(s)) || (m = /^1N P 2C P 2D P 4N P (5[CDHS]) P$/.exec(s))) {
+  if (/^1N P (2D|2H) P (2H|2S) P 2N P 3[HS] P$/.test(s)) return [opt('P', M('Passe', { fiche: '14', text: 'L\'ouvreur préfère l\'atout : on joue 3 en majeure.' }), () => true)];
+  // Texas mineur : 2e enchère du répondant (fiche 14, page 3)
+  if ((m = /^1N P (2S|3C) P (3C|3D) P$/.exec(s))) {
+    const t = m[1] === '2S' ? 3 : 2, d = dn(t), o2 = t === 3 ? 2 : 3;
+    const short = (h, u) => L(h, u) <= 1;
+    const sh = (call, u) => opt(call, M(`Zone manche : ${nm(u).toLowerCase()} court`, { pts: [9, 15], unit: 'H', len: ln({ [d]: [6, 13], [dn(u)]: [0, 1] }), alert: true, fiche: '14',
+      text: `Au moins 6 cartes à ${nm(t)}, 9 à 15 points et un singleton (ou une chicane) à ${nm(u)}. L'ouvreur dit 3SA s'il a un arrêt à ${nm(u)}, sinon 5${sym(t)}.` }), h => hcp(h) >= 9 && short(h, u));
+    return [
+      opt('6N', M('Petit chelem', { pts: [18, 37], unit: 'H', fiche: '11', conclusion: true, text: '18 points H et plus.' }), h => hcp(h) >= 18),
+      opt('4N', M('Zone chelem : 4SA (relais quantitatif)', { pts: [15, 17], unit: 'H', len: ln({ [d]: [6, 13] }), alert: true, fiche: '14',
+        text: `Au moins 6 cartes à ${nm(t)} et 15 points ou plus. Avec 17 points, l'ouvreur répond comme au Blackwood (nombre d'As) ; sinon il passe.` }), h => hcp(h) >= 15),
+      sh('3H', 1), sh('3S', 0),
+      opt('3N', M('Zone manche : autre mineure courte', { pts: [9, 15], unit: 'H', len: ln({ [d]: [6, 13], [dn(o2)]: [0, 1] }), alert: true, fiche: '14',
+        text: `Au moins 6 cartes à ${nm(t)}, 9 à 15 points et un singleton (ou une chicane) à ${nm(o2)}. L'ouvreur passe s'il a un arrêt à ${nm(o2)}, sinon il dit 5${sym(t)}.` }), h => hcp(h) >= 9 && short(h, o2)),
+      opt('P', M('Passe', { pts: [0, 8], unit: 'H', len: ln({ [d]: [6, 13] }), fiche: '14', text: `Jeu faible : on joue 3${sym(t)}.` }), () => true)];
+  }
+  if (/^1N P (2S|3C) P (3C|3D) P \S+ P (3N|5C|5D) P$/.test(s)) return [opt('P', M('Passe', { fiche: '14', conclusion: true }), () => true)];
+  if ((m = /^1N P 4N P (5[CDHS]) P$/.exec(s)) || (m = /^2N P 4N P (5[CDHS]) P$/.exec(s)) || (m = /^1N P 2C P 2D P 4N P (5[CDHS]) P$/.exec(s)) || (m = /^1N P (?:2S|3C) P (?:3C|3D) P 4N P (5[CDHS]) P$/.exec(s))) {
     const pa = { '5C': 0, '5D': 1, '5H': 2, '5S': 3 }[m[1]];
     const tot = h => { let p = pa; if (pa === 0 && aces(h) === 0) p = 4; return p + aces(h); };
     return [
@@ -713,13 +732,23 @@ function opener1NThird(c) {
     if (r === '3N' || r === '4H' || r === '4S' || r === 'P') return [opt('P', pass, () => true)];
     return null;
   }
+  if ((m = /^1N P (2S|3C) P (3C|3D) P (\S+) P$/.exec(s))) {
+    const t = m[1] === '2S' ? 3 : 2, d = dn(t), r = m[3], o2 = t === 3 ? 2 : 3;
+    const u = { '3H': 1, '3S': 0, '3N': o2 }[r];
+    if (u !== undefined) return [
+      opt(r === '3N' ? 'P' : '3N', M(r === '3N' ? 'Passe : on joue 3SA' : '3SA', { fiche: '14', conclusion: true, text: `L'ouvreur a un arrêt à ${nm(u)}, la couleur courte du répondant : on joue 3SA.` }), h => stopper(h, u)),
+      opt('5' + d, M(`Manche à ${nm(t)}`, { fiche: '14', conclusion: true, text: `Pas d'arrêt à ${nm(u)} : on joue 5${sym(t)}.` }), () => true)];
+    if (r === '4N') return simpleBwAnswers(h => hcp(h) >= 17, 'Avec 17 points, l\'ouvreur accepte et indique ses As.')
+      .concat([opt('P', M('Refus : 15 ou 16 points', { pts: [15, 16], unit: 'H', fiche: '14', text: 'L\'ouvreur n\'est pas maximum : on joue 4SA.' }), () => true)]);
+    if (r === '6N') return [opt('P', pass, () => true)];
+    return null;
+  }
   if ((m = /^1N P (2D|2H) P (2H|2S) P (\S+) P$/.exec(s))) {
     const t = m[1] === '2D' ? 1 : 0, d = dn(t), r = m[3];
+    // le 2SA du répondant : pas d'espoir de manche, préférence pour le jeu à Sans-Atout (fiche 14, page 3)
     if (r === '2N') return [
-      opt('4' + d, M('Fit et 17 points', { pts: [17, 17], unit: 'H', len: ln({ [d]: [3, 4] }), fiche: '04', conclusion: true, text: `3 cartes à ${nm(t)} et 17 points.` }), h => L(h, t) >= 3 && hcp(h) >= 17),
-      opt('3' + d, M('Fit, 15-16 points', { pts: [15, 16], unit: 'H', len: ln({ [d]: [3, 4] }), fiche: '04', text: `3 cartes à ${nm(t)}, ouverture non maximum.` }), h => L(h, t) >= 3),
-      opt('3N', M('3SA : 17 points sans fit', { pts: [17, 17], unit: 'H', len: ln({ [d]: [2, 2] }), fiche: '04', conclusion: true, text: '2 cartes seulement, mais 17 points.' }), h => hcp(h) >= 17),
-      opt('P', M('Passe', { pts: [15, 16], unit: 'H', fiche: '04', text: 'Pas de fit et ouverture non maximum.' }), () => true)];
+      opt('3' + d, M('Préférence pour l\'atout', { len: ln({ [d]: [3, 4] }), fiche: '14', conclusion: true, text: `3 cartes à ${nm(t)} : l'ouvreur préfère jouer 3${sym(t)}.` }), h => L(h, t) >= 3),
+      opt('P', M('Passe', { len: ln({ [d]: [2, 2] }), fiche: '14', text: 'Pas d\'espoir de manche : on joue 2SA.' }), () => true)];
     if (r === '3N') return [opt('4' + d, M('Fit : manche à la couleur', { len: ln({ [d]: [3, 4] }), fiche: '04', conclusion: true, text: `3 cartes à ${nm(t)} : la manche à la couleur est préférable.` }), h => L(h, t) >= 3), opt('P', pass, () => true)];
     if (r === '3' + d) return [opt('4' + d, M('Acceptation', { pts: [17, 17], unit: 'H', fiche: '04', conclusion: true, text: 'Avec 17 points.' }), h => hcp(h) >= 17), opt('P', pass, () => true)];
     if (r === '4' + d) return [opt('P', pass, () => true)];
@@ -964,12 +993,53 @@ function overcallOpts(c) {
   o.push(opt('P', M('Passe', { fiche: '10', text: 'Pas d\'intervention possible.' }), () => true));
   return o;
 }
+// Landy (fiche 17) : 2♣ sur l'ouverture 1SA adverse = les deux majeures
+function landyOk(h) {
+  const co = L(h, 1), pi = L(h, 0);
+  if (co >= 4 && pi >= 4 && co + pi >= 9 && hcp(h) >= 12) return true;
+  return co === 4 && pi === 4 && hcp(h) >= 14 && lens(h).some(n => n <= 1);
+}
 function over1NOpts(c) {
-  const o = [opt('X', M('Contre punitif', { pts: [16, 37], unit: 'H', fiche: '10', text: 'Au moins 16 points H : pour faire chuter le contrat.' }), h => hcp(h) >= 16)];
-  for (const s of [0, 1, 2, 3]) o.push(opt('2' + dn(s), M('Intervention naturelle', { pts: [10, 15], unit: 'HL', len: ln({ [dn(s)]: [6, 13] }), fiche: '10', text: `Au moins 6 cartes à ${nm(s)}.` }),
+  const o = [opt('2C', M('Landy : appel aux majeures', { pts: [12, 37], unit: 'H', len: ln({ H: [4, 13], S: [4, 13] }), alert: true, forcing: 1, fiche: '17',
+      text: 'Les deux majeures : au moins 12 points H avec 5-5 ou 5-4 en majeures, ou au moins 14 points H avec 4-4 en majeures et une main 4-4-4-1 ou 4-4-5-0. Le partenaire choisit la majeure.' }), landyOk),
+    opt('X', M('Contre punitif', { pts: [16, 37], unit: 'H', fiche: '10', text: 'Au moins 16 points H : pour faire chuter le contrat.' }), h => hcp(h) >= 16)];
+  // 2♣ est le Landy : pas d'intervention naturelle à Trèfle au palier de 2
+  for (const s of [0, 1, 2]) o.push(opt('2' + dn(s), M('Intervention naturelle', { pts: [10, 15], unit: 'HL', len: ln({ [dn(s)]: [6, 13] }), fiche: '10', text: `Au moins 6 cartes à ${nm(s)}.` }),
     h => L(h, s) >= 6 && HL(h) >= 10 && robust(h, s) && lens(h).every((n, t) => n <= L(h, s) || t === s)));
   o.push(opt('P', M('Passe', { fiche: '10' }), () => true));
   return o;
+}
+// Réponses au Landy (fiche 17)
+function landyRespOpts(c) {
+  const hon = (h, s) => B.ranksIn(h, s).some(r => r >= 9);
+  const pick = h => L(h, 1) >= L(h, 0) ? 1 : 0;   // la majeure la plus longue (Cœur si égalité)
+  const o = [];
+  const maj4 = (h, t) => L(h, t) >= 4 && pick(h) === t;
+  for (const t of [1, 0]) o.push(opt('4' + dn(t), M('Landy : manche', { pts: [11, 37], unit: 'H', len: ln({ [dn(t)]: [4, 13] }), fiche: '17', conclusion: true,
+    text: `Au moins 4 cartes à ${nm(t)} : certitude de manche.` }), h => maj4(h, t) && hcp(h) >= 11));
+  for (const t of [1, 0]) o.push(opt('3' + dn(t), M('Landy : espoir de manche', { pts: [8, 10], unit: 'H', len: ln({ [dn(t)]: [4, 13] }), fiche: '17',
+    text: `Au moins 4 cartes à ${nm(t)} et 8 points H ou plus : espoir de manche.` }), h => maj4(h, t) && hcp(h) >= 8));
+  for (const t of [1, 0]) o.push(opt('2' + dn(t), M('Landy : choix de la majeure', { pts: [0, 7], unit: 'H', len: ln({ [dn(t)]: [4, 13] }), fiche: '17',
+    text: `Jeu minimum avec 4 cartes à ${nm(t)}.` }), h => maj4(h, t)));
+  for (const t of [1, 0]) o.push(opt('2' + dn(t), M('Landy : majeure 3ème avec un honneur', { pts: [0, 7], unit: 'H', len: ln({ [dn(t)]: [3, 3] }), fiche: '17',
+    text: `Jeu minimum, 3 cartes à ${nm(t)} avec un honneur.` }), h => L(h, t) === 3 && hon(h, t) && (t === 1 || !(L(h, 1) === 3 && hon(h, 1)))));
+  o.push(opt('2D', M('Landy : relais faible', { pts: [0, 7], unit: 'H', len: ln({ H: [0, 3], S: [0, 3] }), alert: true, fiche: '17',
+    text: 'Pas de majeure 4ème ni de majeure 3ème avec un honneur : demande au joueur qui a fait le Landy d\'annoncer sa meilleure majeure.' }), () => true));
+  return o;
+}
+// Le joueur qui a fait le Landy, après la réponse de son partenaire
+function landyRebidOpts(c, r) {
+  if (r === '2D') {
+    const best = h => L(h, 1) > L(h, 0) ? 1 : L(h, 0) > L(h, 1) ? 0 : (honors(h, 1) >= honors(h, 0) ? 1 : 0);
+    return [1, 0].map(t => opt('2' + dn(t), M('Landy : meilleure majeure', { len: ln({ [dn(t)]: [4, 13] }), fiche: '17',
+      text: `Après le relais 2♦, le joueur qui a fait le Landy annonce sa meilleure majeure : ${nm(t)}.` }), h => best(h) === t));
+  }
+  if (r === '3H' || r === '3S') {
+    const t = r === '3H' ? 1 : 0;
+    return [opt('4' + dn(t), M('Acceptation de la manche', { pts: [14, 37], unit: 'H', conclusion: true, text: 'Le partenaire a un espoir de manche : avec un bon jeu, on la dit.' }), h => hcp(h) >= 14 || (hcp(h) >= 13 && L(h, t) >= 5)),
+      opt('P', M('Passe', { text: 'Jeu minimum : on refuse la manche.' }), () => true)];
+  }
+  return [opt('P', M('Passe', { fiche: '17', text: 'Le partenaire a choisi la majeure.' }), () => true)];
 }
 function overPreemptOpts(c) {
   const od = c.seq[0][1], os = DEN_SUIT[od];
@@ -1195,6 +1265,10 @@ function systemOptions(c) {
   // Défense
   const partnerActed = c.part.some(x => x.call !== 'P');
   const iActed = c.mine.some(x => x.call !== 'P' && x.i > c.openIdx);
+  // le Landy (fiche 17)
+  if (partnerActed && !iActed && /^1N (P P )?2C P$/.test(s)) return landyRespOpts(c);
+  const lm = /^1N (?:P P )?2C P (2D|2H|2S|3H|3S|4H|4S) P$/.exec(s);
+  if (lm && iActed) return landyRebidOpts(c, lm[1]);
   if (!partnerActed && !iActed) {
     if (/^1[CDHS]( P P)?$/.test(s)) return overcallOpts(c);
     if (/^1[CDHS] P (1[DHSN]|2[CDH])$/.test(s)) return overcallOpts(c);

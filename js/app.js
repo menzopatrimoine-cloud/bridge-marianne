@@ -81,7 +81,7 @@ const seatName = s => s === 2 ? 'Vous' : nameOf(s);
 const chefOf = () => B.PERSOS.find(q => q.av.chef);
 const CHEF_BADGE = '<span class="chef-badge">★ Chef du bridge</span>';
 const CHEF_COURS = '<div class="chef-cours"><b>Le mardi :</b> cours intermédiaires et confirmés<br><b>Le jeudi :</b> cours débutants</div>';
-const FICHE_PAGES = { '01': 3, '02': 1, '03': 1, '04': 2, '05': 1, '06': 2, '07': 3, '08': 2, '09': 2, '10': 2, '11': 2, '12': 2, '13': 2, '14': 1, '15': 1, '16': 1 };
+const FICHE_PAGES = { '01': 3, '02': 1, '03': 1, '04': 2, '05': 1, '06': 2, '07': 3, '08': 2, '09': 2, '10': 2, '11': 2, '12': 2, '13': 2, '14': 3, '15': 1, '16': 1, '17': 1 };
 const ficheBtn = f => FICHE_PAGES[f] ? `<button class="btn fiche-link" data-fiche="${f}">${ICONS.book}<span>Ouvrir la fiche du cours n° ${f} : ${rich(B.FICHES[f])}</span></button>` : '';
 function callHTML(c, long) {
   if (c === 'P') return 'Passe';
@@ -285,7 +285,8 @@ function missionSlipCheck(seat, card) {
   } catch (e) { return false; }
 }
 // les fiches en PDF, prêtes à imprimer (un onglet s'ouvre ; sur l'iPad : Partager, puis Imprimer)
-const fichePdf = k => `fiches/pdf/fiche-${k}.pdf?v=1`;
+const PDF_V = 3;   // à augmenter quand une fiche PDF change
+const fichePdf = k => `fiches/pdf/fiche-${k}.pdf?v=${PDF_V}`;
 const pdfLink = (href, label, cls) => `<a class="btn pdf-btn ${cls || ''}" href="${href}" target="_blank" rel="noopener">${ICONS.print}<span>${label}</span></a>`;
 const ficheListHTML = () => `<div class="fiche-list">${Object.keys(B.FICHES).sort().map(k => `<div class="fiche-row"><button class="btn" data-fiche="${k}">${ICONS.book}<span>Fiche ${k} : ${rich(B.FICHES[k])}</span></button>${pdfLink(fichePdf(k), 'PDF')}</div>`).join('')}</div>`;
 function renderFiches() {
@@ -294,7 +295,7 @@ function renderFiches() {
     <button class="btn back ${inGame ? 'sticky' : ''}" data-act="${backAct()}">${inGame ? '← Retour au jeu' : '← Retour'}</button>
     <h1>Les fiches du cours</h1>
     <p>Toutes les fiches d'apprentissage, en gros caractères. Touchez une fiche pour l'ouvrir en grand.</p>
-    <div class="pdf-all">${pdfLink('fiches/pdf/cours-complet.pdf?v=2', 'Imprimer tout le cours (PDF)', 'gold')}</div>
+    <div class="pdf-all">${pdfLink(`fiches/pdf/cours-complet.pdf?v=${PDF_V}`, 'Imprimer tout le cours (PDF)', 'gold')}</div>
     <p class="pdf-how">Pour imprimer une seule fiche, touchez « PDF » à côté d'elle. Sur l'iPad, touchez ensuite le bouton Partager, puis « Imprimer ».</p>
     ${ficheListHTML()}
   </div></div>`;
@@ -2420,7 +2421,7 @@ function openFiche(id, think) {
     ${inGame ? '' : pdfLink(fichePdf(id), 'PDF')}<button class="btn" data-z="-1">A−</button><button class="btn" data-z="1">A+</button><button class="btn primary" data-close>Fermer</button></div>
     ${think ? `<div class="fiche-think"><div class="ft-txt"><b>Réfléchissez avec la fiche.</b> Votre main : ${[0, 1, 2, 3].map(s => `<span class="ft-s">${su(s)} ${B.ranksIn(think.hand, s).map(x => B.RANK_TXT[x]).join(' ') || '—'}</span>`).join('')}<span class="ft-p"><b>${B.hcp(think.hand)} points H</b>, ${B.HL(think.hand)} points HL</span></div>
       <button class="btn gold" data-answer>Voir la réponse</button></div>` : ''}
-    <div class="pages">${Array.from({ length: n }, (_, i) => `<img src="fiches/f${id}-${i + 1}.jpg?v=4" alt="Fiche ${id}, page ${i + 1}">`).join('')}</div>
+    <div class="pages">${Array.from({ length: n }, (_, i) => `<img src="fiches/f${id}-${i + 1}.jpg?v=${id === '14' ? 5 : 4}" alt="Fiche ${id}, page ${i + 1}">`).join('')}</div>
     <button class="btn primary fv-close" data-close>✕ Fermer la fiche${inGame ? ' et revenir au jeu' : ''}</button>`;
   document.body.appendChild(v);
   snd('select');
