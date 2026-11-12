@@ -17,7 +17,7 @@ const FICHES = {
   '06': 'Ouvertures faibles 2♥ ou 2♠', '07': 'Ouvertures fortes, tableau', '08': 'Ouvertures fortes, résumé',
   '09': 'Jeu de la carte', '10': 'Interventions en 2ème position', '11': 'Ouverture 1 SA et Stayman',
   '12': 'Barrages niveaux 3 et 4', '13': 'Réponses au contre d\'intervention',
-  '14': 'Après ouverture 1 SA : Stayman et Texas', '15': 'Règle des 9',
+  '14': 'Après ouverture 1 SA : Stayman et Texas', '15': 'Règle des 9', '16': 'Table de décision',
 };
 
 /* ---------- Sens d'une enchère ---------- */

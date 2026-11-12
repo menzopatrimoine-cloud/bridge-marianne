@@ -753,3 +753,16 @@ a.pdf-btn { text-decoration: none; gap: 8px; }
 .btn.pdf-btn .ico { width: 24px; height: 24px; }
 body.tel .fiche-view .bar { flex-wrap: wrap; }
 body.tel .fiche-view .ttl { flex-basis: 100%; }
+
+/* Mode expert */
+.home-duo { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 10px; }
+.btn.expert-btn { background: #26303f; color: #fff; border-color: #151b25; flex-direction: column; gap: 0; line-height: 1.1; }
+.btn.expert-btn small { font-size: 15px; font-weight: 600; opacity: .85; }
+@media (max-height: 880px) { .home .btn.expert-btn small { font-size: 13px; } }
+
+/* Fiches : toujours un moyen visible de les refermer */
+.fiche-view .pages { padding-bottom: 104px; }
+.fiche-view .fv-close { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom));
+  min-height: 62px; font-size: 22px; padding: 8px 26px; white-space: nowrap; max-width: calc(100% - 24px); box-shadow: 0 8px 22px rgba(0,0,0,.45); z-index: 2; }
+body.tel .fiche-view .fv-close { font-size: 18px; min-height: 54px; padding: 6px 16px; }
+.page .btn.back.sticky { position: sticky; top: 8px; z-index: 5; box-shadow: 0 4px 14px rgba(0,0,0,.18); }

@@ -81,7 +81,7 @@ const seatName = s => s === 2 ? 'Vous' : nameOf(s);
 const chefOf = () => B.PERSOS.find(q => q.av.chef);
 const CHEF_BADGE = '<span class="chef-badge">★ Chef du bridge</span>';
 const CHEF_COURS = '<div class="chef-cours"><b>Le mardi :</b> cours intermédiaires et confirmés<br><b>Le jeudi :</b> cours débutants</div>';
-const FICHE_PAGES = { '01': 3, '02': 1, '03': 1, '04': 2, '05': 1, '06': 2, '07': 3, '08': 2, '09': 2, '10': 2, '11': 2, '12': 2, '13': 2, '14': 1, '15': 1 };
+const FICHE_PAGES = { '01': 3, '02': 1, '03': 1, '04': 2, '05': 1, '06': 2, '07': 3, '08': 2, '09': 2, '10': 2, '11': 2, '12': 2, '13': 2, '14': 1, '15': 1, '16': 1 };
 const ficheBtn = f => FICHE_PAGES[f] ? `<button class="btn fiche-link" data-fiche="${f}">${ICONS.book}<span>Ouvrir la fiche du cours n° ${f} : ${rich(B.FICHES[f])}</span></button>` : '';
 function callHTML(c, long) {
   if (c === 'P') return 'Passe';
@@ -137,10 +137,11 @@ function modal(html, onClick, cls) {
   });
 }
 function closeModal() { $modal.innerHTML = ''; }
-const delay = kind => ({ bid: 900, card: 700, trick: 1100, lead: 1100 })[kind] * SPEED[G.settings.speed];
+// les annonces restent plus longtemps à l'écran, pour bien voir qui a dit quoi
+const delay = kind => ({ bid: 2000, card: 700, trick: 1100, lead: 1100 })[kind] * SPEED[G.settings.speed];
 
 /* ---------- Donnes ---------- */
-function newDeal(sameHands, preset) {
+function newDeal(sameHands, preset, expert) {
   cancelTimers();
   closeModal();
   let hands, board;
@@ -159,7 +160,8 @@ function newDeal(sameHands, preset) {
   const info = preset || (typeof board === 'number' ? B.boardInfo(board) : { dealer: G.game.dealer, vul: G.game.vul });
   // trois personnages différents : Est, Ouest et le partenaire Nord
   const picks = sameHands && G.game && G.game.opp && G.game.nord != null ? [G.game.opp[0], G.game.opp[1], G.game.nord] : pickPersos();
-  G.game = { board, dealer: info.dealer, vul: info.vul, hands, auction: [], phase: 'bidding', play: null, contract: null, undo: [], selCall: null, result: null, recorded: false, opp: [picks[0], picks[1]], nord: picks[2], learn: preset ? preset.learn : undefined };
+  G.game = { board, dealer: info.dealer, vul: info.vul, hands, auction: [], phase: 'bidding', play: null, contract: null, undo: [], selCall: null, result: null, recorded: false, opp: [picks[0], picks[1]], nord: picks[2], learn: preset ? preset.learn : undefined,
+    expert: !preset && (sameHands ? !!(G.game && G.game.expert) : !!expert) };
   thinking = -1; holdTrick = false; bidLevel = null; selected = null; hintCard = null; lastPlayed = null;
   fly = null; dealAnim = true; dummyRevealKey = null; newBidIdx = -1; robotActed = true; shownWon = [0, 0];
   save();
@@ -179,8 +181,8 @@ function beginDeal(announce) {
   render();
   if (announce) {
     const who = P.name ? `<b>${esc(P.name)}</b>${P.title ? ', ' + esc(P.title) + ',' : ''} joue` : 'Vous jouez';
-    toast(`${who} avec <b>${perso(0).name}</b>, ${perso(0).title}, contre <b>${perso(3).name}</b>, ${perso(3).title}, et <b>${perso(1).name}</b>, ${perso(1).title}.`, 5200);
-  }
+    toast(`${who} avec <b>${perso(0).name}</b>, ${perso(0).title}, contre <b>${perso(3).name}</b>, ${perso(3).title}, et <b>${perso(1).name}</b>, ${perso(1).title}.${G.game.expert ? EXPERT_TXT : ''}`, 5200);
+  } else if (G.game.expert) toast(EXPERT_TXT.slice(4), 3400);
   const tok = runToken;
   setTimeout(() => { if (tok !== runToken) return; dealing = false; step(); }, dealing ? 900 : 0);
 }
@@ -287,11 +289,12 @@ const fichePdf = k => `fiches/pdf/fiche-${k}.pdf?v=1`;
 const pdfLink = (href, label, cls) => `<a class="btn pdf-btn ${cls || ''}" href="${href}" target="_blank" rel="noopener">${ICONS.print}<span>${label}</span></a>`;
 const ficheListHTML = () => `<div class="fiche-list">${Object.keys(B.FICHES).sort().map(k => `<div class="fiche-row"><button class="btn" data-fiche="${k}">${ICONS.book}<span>Fiche ${k} : ${rich(B.FICHES[k])}</span></button>${pdfLink(fichePdf(k), 'PDF')}</div>`).join('')}</div>`;
 function renderFiches() {
+  const inGame = backAct() === 'resume';
   $app.innerHTML = `<div class="page"><div class="inner">
-    <button class="btn back" data-act="${backAct()}">← Retour</button>
+    <button class="btn back ${inGame ? 'sticky' : ''}" data-act="${backAct()}">${inGame ? '← Retour au jeu' : '← Retour'}</button>
     <h1>Les fiches du cours</h1>
     <p>Toutes les fiches d'apprentissage, en gros caractères. Touchez une fiche pour l'ouvrir en grand.</p>
-    <div class="pdf-all">${pdfLink('fiches/pdf/cours-complet.pdf?v=1', 'Imprimer tout le cours (PDF)', 'gold')}</div>
+    <div class="pdf-all">${pdfLink('fiches/pdf/cours-complet.pdf?v=2', 'Imprimer tout le cours (PDF)', 'gold')}</div>
     <p class="pdf-how">Pour imprimer une seule fiche, touchez « PDF » à côté d'elle. Sur l'iPad, touchez ensuite le bouton Partager, puis « Imprimer ».</p>
     ${ficheListHTML()}
   </div></div>`;
@@ -357,7 +360,8 @@ function finishMission() {
 /* ---------- Apprendre : mini-bridge, cours pas à pas, donnes commentées ---------- */
 const LC = B.lecons;
 const LP = () => G.learn = G.learn || { lu: {}, donnes: {} };
-const boardLabel = g => g.learn || g.mission ? g.board : 'Donne n° ' + g.board;
+const boardLabel = g => g.learn || g.mission ? g.board : 'Donne n° ' + g.board + (g.expert ? ' · expert' : '');
+const EXPERT_TXT = '<br><b>Mode expert</b> : aucun conseil pendant la donne.';
 let learnView = { theme: 'contrat', lecon: null, chap: 'c1', filtre: 'tout' };
 const ldKey = (kind, group, i) => `${kind}:${group}:${i}`;
 const stIcon = st => `<span class="ld-st ${st || 'vide'}">${st === 'ok' ? '✓' : st === 'ko' ? '✗' : st === 'enc' ? '…' : ''}</span>`;
@@ -669,7 +673,14 @@ function step() {
   if (robotPending) { render(); return; }
   const tok = runToken;
   if (g.phase === 'bidding') {
-    if (B.auctionEnded(g.auction)) { finishAuction(); return; }
+    if (B.auctionEnded(g.auction)) {
+      // les enchères restent affichées un moment avant le jeu de la carte
+      thinking = -1;
+      robotPending = true;
+      render();
+      setTimeout(() => { if (tok !== runToken) return; robotPending = false; finishAuction(); }, delay('bid'));
+      return;
+    }
     const seat = (g.dealer + g.auction.length) % 4;
     if (seat === 2) {
       thinking = -1;
@@ -836,9 +847,9 @@ const wlHTML = w => `<span class="wl"><i class="w">✓ ${w.v}</i><i class="l">�
 /* ---------- Actions de l'utilisatrice ---------- */
 function submitCall(call, force) {
   const g = G.game;
-  if (g.phase !== 'bidding' || (g.dealer + g.auction.length) % 4 !== 2) return;
+  if (g.phase !== 'bidding' || B.auctionEnded(g.auction) || (g.dealer + g.auction.length) % 4 !== 2) return;
   if (!B.isLegal(call, g.auction, g.dealer)) return;
-  if (!force && (G.settings.checkBids || (g.learn && g.learn.kind === 'cours'))) {
+  if (!force && !g.expert && (G.settings.checkBids || (g.learn && g.learn.kind === 'cours'))) {
     const h = B.decide(g.hands[2], g.auction, g.dealer);
     if (h.sure && h.call !== call) { deviation(h, call); return; }
   }
@@ -906,8 +917,9 @@ function hint() {
   const g = G.game;
   if (!g) return;
   if (g.phase === 'mini') { miniHint(); return; }
+  if (g.expert) { toast(EXPERT_TXT.slice(4)); return; }
   if (g.phase === 'bidding') {
-    if ((g.dealer + g.auction.length) % 4 !== 2) { toast('Attendez votre tour pour demander un conseil.'); return; }
+    if (B.auctionEnded(g.auction) || (g.dealer + g.auction.length) % 4 !== 2) { toast('Attendez votre tour pour demander un conseil.'); return; }
     const h = B.decide(g.hands[2], g.auction, g.dealer);
     const hand = g.hands[2];
     const l = B.lens(hand);
@@ -998,7 +1010,7 @@ function menu() {
     <button class="btn" data-m="settings">Réglages</button>
     <button class="btn" data-m="home">Accueil</button>
     <button class="btn" data-m="close">Fermer</button></div>`, v => {
-    if (v === 'new') newDeal(false);
+    if (v === 'new') newDeal(false, null, !!(G.game && G.game.expert));
     else if (v === 'replay') confirmReplay();
     else if (v === 'close') return;
     else go(v);
@@ -1056,8 +1068,9 @@ function renderHome() {
     <h1>Le Bridge de Marianne</h1>
     <div class="sub">Jouez contre trois robots qui annoncent comme dans votre cours.</div>
     <div class="menu-list">
-      ${resume ? `<button class="btn primary" data-act="resume">${g.mission ? 'Reprendre la mission : ' + g.board : g.learn ? 'Reprendre : ' + g.board : 'Reprendre la donne n° ' + g.board}</button>` : ''}
-      <button class="btn ${resume ? '' : 'primary'}" data-act="new">Nouvelle donne</button>
+      ${resume ? `<button class="btn primary" data-act="resume">${g.mission ? 'Reprendre la mission : ' + g.board : g.learn ? 'Reprendre : ' + g.board : 'Reprendre la ' + boardLabel(g).replace('Donne', 'donne')}</button>` : ''}
+      <div class="home-duo"><button class="btn ${resume ? '' : 'primary'}" data-act="new:normal">Nouvelle donne</button>
+        <button class="btn expert-btn" data-act="new:expert">Mode expert<small>sans aucun conseil</small></button></div>
       <button class="btn green" data-act="go:apprendre">${ICONS.cap}Apprendre</button>
       <button class="btn gold" data-act="go:missions">★ Les missions <small>${B.MISSIONS.filter(m => MP().done[m.id]).length} / ${B.MISSIONS.length}</small></button>
       ${onlineHomeHTML()}
@@ -1078,7 +1091,7 @@ function renderGame() {
   const decl = g.contract ? g.contract.declarer : -1;
   const dummy = g.contract ? B.partnerOf(decl) : -1;
   const dummyShown = p && B.dummyShown(p);
-  const turn = phase === 'bidding' ? (g.dealer + g.auction.length) % 4 : phase === 'play' ? p.turn : -1;
+  const turn = phase === 'bidding' ? (B.auctionEnded(g.auction) ? -1 : (g.dealer + g.auction.length) % 4) : phase === 'play' ? p.turn : -1;
   const hands = phase === 'bidding' || !p ? g.hands : p.hands;
   const role = s => !g.contract || phase === 'bidding' ? '' : s === decl ? 'déclarant' : s === dummy ? 'mort' : 'défense';
   const tag = s => {
@@ -1126,7 +1139,8 @@ function renderGame() {
   // centre
   let center = '', status = '';
   if (phase === 'bidding') {
-    if (turn === 2 && !dealing) center = bidboxHTML();
+    if (B.auctionEnded(g.auction)) center = '<div class="thinking">Fin des enchères</div>';
+    else if (turn === 2 && !dealing) center = bidboxHTML();
     else if (thinking >= 0) center = `<div class="thinking">${nameOf(thinking)} réfléchit…</div>`;
   } else if (phase === 'mini') {
     center = miniBoxHTML();
@@ -1215,7 +1229,7 @@ function bidboxHTML() {
       <button class="dbl" data-act="call:X" ${B.isLegal('X', g.auction, g.dealer) ? '' : 'disabled'}>Contre</button>
       <button class="rdbl" data-act="call:XX" ${B.isLegal('XX', g.auction, g.dealer) ? '' : 'disabled'}>Surcontre</button>
     </div>
-    ${G.settings.showPoints ? `<div class="pts">Votre main : <b>${B.hcp(hand)} points H</b> · ${B.HL(hand)} points HL</div>` : ''}
+    ${G.settings.showPoints && !g.expert ? `<div class="pts">Votre main : <b>${B.hcp(hand)} points H</b> · ${B.HL(hand)} points HL</div>` : ''}
   </div>`;
 }
 
@@ -1265,7 +1279,7 @@ function auctionHTML() {
     const cls = c === 'P' ? 'pass' : c === 'X' ? 'dbl' : c === 'XX' ? 'rdbl' : '';
     cells.push(`<button class="${cls} ${g.selCall === i ? 'sel' : ''}" data-act="sel:${i}">${callHTML(c)}${m.alert ? '<span class="al">!</span>' : ''}</button>`);
   });
-  if (g.phase === 'bidding') cells.push('<span class="q">?</span>');
+  if (g.phase === 'bidding' && !B.auctionEnded(g.auction)) cells.push('<span class="q">?</span>');
   const rows = [];
   for (let i = 0; i < cells.length; i += 4) rows.push(`<div class="row">${cells.slice(i, i + 4).join('')}${'<span></span>'.repeat(Math.max(0, 4 - cells.slice(i, i + 4).length))}</div>`);
   return `<div class="auction"><div class="head">${head}</div>${rows.join('')}
@@ -1315,10 +1329,12 @@ function actionsHTML() {
   if (g.phase === 'mini') return `<button class="btn gold" data-act="hint">${ICONS.hint}Conseil</button>${more}`;
   // en ligne : ni « Annuler » ni « Réclamer », on joue à plusieurs
   const undoBtn = g.online ? '' : `<button class="btn" data-act="undo" ${canUndo ? '' : 'disabled'}>${ICONS.undo}Annuler</button>`;
-  if (g.phase === 'bidding') return `<button class="btn gold" data-act="hint">${ICONS.hint}Conseil</button>${undoBtn}${more}`;
+  // mode expert : pas de bouton Conseil
+  const hintBtn = g.expert ? '' : `<button class="btn gold" data-act="hint">${ICONS.hint}Conseil</button>`;
+  if (g.phase === 'bidding') return `${hintBtn}${undoBtn}${more}`;
   if (g.phase === 'play') {
     const canClaim = B.sideOf(p.declarer) === 0;
-    return `<button class="btn gold" data-act="hint">${ICONS.hint}Conseil</button>${undoBtn}
+    return `${hintBtn}${undoBtn}
       <button class="btn" data-act="last" ${p.tricks.length ? '' : 'disabled'}>${ICONS.last}Dernier pli</button>
       ${g.online ? '' : `<button class="btn" data-act="claim" ${canClaim ? '' : 'disabled'}>${ICONS.claim}Réclamer</button>`}${more}`;
   }
@@ -2129,7 +2145,7 @@ function onlineGame(v, keep) {
     contract: v.contract ? Object.assign({}, v.contract, { declarer: R(v.contract.declarer) }) : null, undo: [], selCall: keep, result: res, recorded: true };
 }
 function onlineThinking(g) {
-  if (g.phase === 'bidding') { const s = (g.dealer + g.auction.length) % 4; return s === 2 ? -1 : s; }
+  if (g.phase === 'bidding') { const s = (g.dealer + g.auction.length) % 4; return s === 2 || B.auctionEnded(g.auction) ? -1 : s; }
   if (g.phase !== 'play' || g.play.done || userControls(g.play.turn)) return -1;
   return g.play.turn === g.play.dummy ? g.play.declarer : g.play.turn;
 }
@@ -2175,7 +2191,7 @@ function onlineApply(v, silent) {
     else msg += p.leader === 2 ? '<br>C\'est à vous d\'entamer.' : `<br>${nameOf(p.leader)} entame.`;
     if (!side) toast(msg, 4600);
   }
-  const mine = g.phase === 'bidding' ? (g.dealer + g.auction.length) % 4 === 2 : g.phase === 'play' && !g.play.done && userControls(g.play.turn);
+  const mine = g.phase === 'bidding' ? !B.auctionEnded(g.auction) && (g.dealer + g.auction.length) % 4 === 2 : g.phase === 'play' && !g.play.done && userControls(g.play.turn);
   if (mine && !ON.myTurn && !silent) { if (g.phase === 'bidding') bidboxEnter = true; setTimeout(() => snd('turn'), 120); }
   ON.myTurn = mine;
   if (side) { onlinePump(); return; }
@@ -2337,7 +2353,7 @@ $app.addEventListener('click', e => {
   }
   const act = a.dataset.act;
   const [k, v, w, x] = act.split(':');
-  if (k === 'new') newDeal(false);
+  if (k === 'new') newDeal(false, null, v === 'expert' ? true : v === 'normal' ? false : !!(G.game && G.game.expert));
   else if (k === 'replay') confirmReplay();
   else if (k === 'resume') go('game');
   else if (k === 'on-create') onlineCreate();
@@ -2396,19 +2412,25 @@ function openFiche(id, think) {
   const n = FICHE_PAGES[id];
   if (!n) return;
   let zoom = 1;
+  // pendant une partie : pas de PDF (il s'ouvrirait dans un autre onglet) et un grand bouton pour revenir au jeu
+  const inGame = screen === 'game';
   const v = document.createElement('div');
   v.className = 'fiche-view';
   v.innerHTML = `<div class="bar"><div class="ttl">Fiche du cours n° ${id}<small>${rich(B.FICHES[id])}</small></div>
-    ${pdfLink(fichePdf(id), 'PDF')}<button class="btn" data-z="-1">A−</button><button class="btn" data-z="1">A+</button><button class="btn primary" data-close>Fermer</button></div>
+    ${inGame ? '' : pdfLink(fichePdf(id), 'PDF')}<button class="btn" data-z="-1">A−</button><button class="btn" data-z="1">A+</button><button class="btn primary" data-close>Fermer</button></div>
     ${think ? `<div class="fiche-think"><div class="ft-txt"><b>Réfléchissez avec la fiche.</b> Votre main : ${[0, 1, 2, 3].map(s => `<span class="ft-s">${su(s)} ${B.ranksIn(think.hand, s).map(x => B.RANK_TXT[x]).join(' ') || '—'}</span>`).join('')}<span class="ft-p"><b>${B.hcp(think.hand)} points H</b>, ${B.HL(think.hand)} points HL</span></div>
       <button class="btn gold" data-answer>Voir la réponse</button></div>` : ''}
-    <div class="pages">${Array.from({ length: n }, (_, i) => `<img src="fiches/f${id}-${i + 1}.jpg?v=4" alt="Fiche ${id}, page ${i + 1}">`).join('')}</div>`;
+    <div class="pages">${Array.from({ length: n }, (_, i) => `<img src="fiches/f${id}-${i + 1}.jpg?v=4" alt="Fiche ${id}, page ${i + 1}">`).join('')}</div>
+    <button class="btn primary fv-close" data-close>✕ Fermer la fiche${inGame ? ' et revenir au jeu' : ''}</button>`;
   document.body.appendChild(v);
   snd('select');
   const pages = v.querySelector('.pages');
+  const close = () => { v.remove(); document.removeEventListener('keydown', onKey); };
+  const onKey = e => { if (e.key === 'Escape') close(); };
+  document.addEventListener('keydown', onKey);
   v.addEventListener('click', e => {
-    if (e.target.closest('[data-close]')) { v.remove(); return; }
-    if (e.target.closest('[data-answer]')) { v.remove(); think.answer(); return; }
+    if (e.target.closest('[data-close]')) { close(); return; }
+    if (e.target.closest('[data-answer]')) { close(); think.answer(); return; }
     const z = e.target.closest('[data-z]');
     if (z) { zoom = Math.max(0.6, Math.min(2.2, zoom + 0.4 * +z.dataset.z)); pages.style.setProperty('--z', zoom); }
   });
