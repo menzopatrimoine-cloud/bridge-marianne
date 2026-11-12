@@ -294,6 +294,7 @@ function renderFiches() {
   $app.innerHTML = `<div class="page"><div class="inner">
     <button class="btn back ${inGame ? 'sticky' : ''}" data-act="${backAct()}">${inGame ? '← Retour au jeu' : '← Retour'}</button>
     <h1>Les fiches du cours</h1>
+    <div class="chef-box">${B.avatarSVG(chefOf())}<div><div class="pc-n"><b>Roger</b>${CHEF_BADGE}</div><p>Les fiches du cours ont été créées par Roger, le chef du bridge de l'Hippocampe.</p></div></div>
     <p>Toutes les fiches d'apprentissage, en gros caractères. Touchez une fiche pour l'ouvrir en grand.</p>
     <div class="pdf-all">${pdfLink(`fiches/pdf/cours-complet.pdf?v=${PDF_V}`, 'Imprimer tout le cours (PDF)', 'gold')}</div>
     <p class="pdf-how">Pour imprimer une seule fiche, touchez « PDF » à côté d'elle. Sur l'iPad, touchez ensuite le bouton Partager, puis « Imprimer ».</p>
@@ -552,7 +553,7 @@ function renderApprendre() {
   $app.innerHTML = `<div class="page"><div class="inner">
     <button class="btn back" data-act="go:home">← Accueil</button>
     <h1>Apprendre</h1>
-    <div class="chef-box">${B.avatarSVG(chefOf())}<div><div class="pc-n"><b>Roger</b>${CHEF_BADGE}</div><p>« Ici, vous apprenez à votre rythme. Et pour me retrouver à l'Hippocampe, à Villefranche-sur-Mer : »</p>${CHEF_COURS}</div></div>
+    <div class="chef-box">${B.avatarSVG(chefOf())}<div><div class="pc-n"><b>Roger</b>${CHEF_BADGE}</div><p>« Ici, vous apprenez à votre rythme, avec les fiches de cours que j'ai créées. Et pour me retrouver à l'Hippocampe, à Villefranche-sur-Mer : »</p>${CHEF_COURS}</div></div>
     <h2>Mini-bridge <small>sans enchères, pour découvrir le jeu : on compte les points, et on joue</small></h2>
     <div class="ld-list">${themes}</div>
     <h2>Le cours pas à pas <small>chaque chapitre reprend une fiche du cours, avec des donnes pour s'exercer</small></h2>
