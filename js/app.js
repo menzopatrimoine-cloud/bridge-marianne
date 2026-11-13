@@ -187,7 +187,7 @@ function beginDeal(announce) {
   setTimeout(() => { if (tok !== runToken) return; dealing = false; step(); }, dealing ? 900 : 0);
 }
 function pickPersos() {
-  const pool = B.PERSOS.map((_, i) => i);
+  const pool = B.PERSOS.map((_, i) => i).filter(i => !B.PERSOS[i].joueuse);   // Marianne joue elle-même : jamais tirée comme robot
   for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
   const picks = pool.slice(0, 3);
   // Roger, le chef du bridge, vient plus souvent : environ une donne sur trois, volontiers en partenaire
@@ -217,14 +217,20 @@ function renderTour() {
   </div></div>`;
 }
 /* ---------- La découverte des personnages ---------- */
+// l'ordre d'affichage des personnages (choix de Menzo) : Roger, Menzo, Marianne, Christine, Anne-Marie, puis les autres
+const PERSO_TETE = ['Roger', 'Menzo', 'Marianne', 'Christine', 'Anne-Marie'];
+const persosEnOrdre = list => list.slice().sort((a, b) => {
+  const ia = PERSO_TETE.indexOf(a.name), ib = PERSO_TETE.indexOf(b.name);
+  return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || B.PERSOS.indexOf(a) - B.PERSOS.indexOf(b);
+});
 function renderPersos() {
-  const list = B.PERSOS.slice().sort((a, b) => (b.av.chef ? 1 : 0) - (a.av.chef ? 1 : 0));
+  const list = persosEnOrdre(B.PERSOS), n = B.PERSOS.filter(q => !q.joueuse).length;
   $app.innerHTML = `<div class="page"><div class="inner">
     <button class="btn back" data-act="${backAct()}">← Retour</button>
     <h1>Les personnages</h1>
-    <p>Voici les ${list.length} joueurs que vous pouvez retrouver à votre table, comme partenaire ou comme adversaire.</p>
-    <div class="pc-list">${list.map(q => `<div class="pc ${q.av.chef ? 'chef' : ''}">${B.avatarSVG(q)}<div class="pc-t">
-      <div class="pc-n"><b>${q.name}</b>${q.av.chef ? CHEF_BADGE : ''}</div><small>${q.title}</small>
+    <p>Voici les ${n} joueurs que vous pouvez retrouver à votre table, comme partenaire ou comme adversaire, et Marianne, pour qui l'application a été créée.</p>
+    <div class="pc-list">${list.map(q => `<div class="pc ${q.av.chef ? 'chef' : ''} ${q.joueuse ? 'joueuse' : ''}">${B.avatarSVG(q)}<div class="pc-t">
+      <div class="pc-n"><b>${q.name}</b>${q.av.chef ? CHEF_BADGE : ''}${q.joueuse ? '<span class="pc-sud">Joue en Sud</span>' : ''}</div><small>${q.title}</small>
       <p>${q.bio}</p>${q.av.chef ? CHEF_COURS : ''}<p class="pc-h">« ${q.hello} »</p></div></div>`).join('')}</div>
   </div></div>`;
 }
@@ -1788,7 +1794,7 @@ function renderStats() {
 }
 function persoStatsHTML() {
   const wl = G.stats.wl || {};
-  const list = B.PERSOS.filter(q => wl[q.name]);
+  const list = persosEnOrdre(B.PERSOS.filter(q => wl[q.name]));
   if (!list.length) return '';
   const cell = w => w.v + w.d ? `<span class="w">✓ ${w.v}</span> <span class="l">✗ ${w.d}</span>` : '—';
   return `<h2>Avec et contre les personnages</h2><table class="hist persos"><tr><th></th><th>Personnage</th><th>Avec (partenaire)</th><th>Contre (adversaire)</th></tr>
