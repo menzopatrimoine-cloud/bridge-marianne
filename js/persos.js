@@ -139,7 +139,7 @@ const PERSOS = [
     av: { bg: '#bfe3dc', chien: true } },
   { name: 'Elisabeth', title: 'la Savoyarde qui a fait découvrir le bridge à Marianne',
     hello: 'Bonjour, moi c\'est Elisabeth ! J\'ai vécu en Savoie : ski l\'hiver, randonnée l\'été, ping-pong toute l\'année, et du soleil dès qu\'il y en a. Le bridge ? C\'est moi qui l\'ai fait découvrir à Marianne… alors pas de pitié !',
-    bio: 'Elle a vécu en Savoie et adore le ski. Très dynamique, elle aime les randonnées, le soleil et le ping-pong. C\'est grâce à elle que Marianne a découvert le bridge : sans Elisabeth, pas d\'application !',
+    bio: 'Elle a vécu en Savoie et adore le ski. Très dynamique, elle aime les randonnées, le soleil et le ping-pong. C\'est grâce à elle que Marianne a découvert le bridge.',
     gagne: 'Tout schuss jusqu\'au dernier pli !', perd: 'Bravo ! Vous m\'avez doublée dans la descente.',
     avecGagne: 'Quelle descente, partenaire : médaille d\'or !', avecPerd: 'Une petite chute dans la poudreuse : on remonte au télésiège et on recommence !',
     av: { bg: '#bfe0f0', skin: '#e6b48f', hair: '#8a6a4a', style: 'court-f', outfit: 'polo', cloth: '#e0672f', accent: '#ffffff', hat: 'visiere', hatColor: '#ffffff', earrings: 'or' } },
