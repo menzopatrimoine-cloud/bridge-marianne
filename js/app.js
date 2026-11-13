@@ -50,6 +50,16 @@ function load() {
       x.settings = Object.assign({}, DEFAULTS, x.settings);
       x.stats = x.stats || { history: [] };
       if (!x.stats.me) x.stats.me = { v: x.stats.history.filter(h => h.ns > 0).length, d: x.stats.history.filter(h => h.ns < 0).length };
+      // une partie enregistrée avec un personnage retiré reprend avec un personnage encore à la table
+      const g = x.game;
+      if (g && g.opp && !g.online && B.PERSOS) {
+        const ok = i => B.PERSOS[i] && !B.PERSOS[i].retire && !B.PERSOS[i].joueuse;
+        const used = new Set([g.opp[0], g.opp[1], g.nord].filter(ok));
+        const free = B.PERSOS.map((_, i) => i).filter(i => ok(i) && !used.has(i));
+        const fix = i => ok(i) ? i : free.shift();
+        g.opp = [fix(g.opp[0]), fix(g.opp[1])];
+        if (g.nord != null) g.nord = fix(g.nord);
+      }
       return x;
     }
   } catch (e) { /* stockage indisponible */ }
@@ -186,13 +196,14 @@ function beginDeal(announce) {
   const tok = runToken;
   setTimeout(() => { if (tok !== runToken) return; dealing = false; step(); }, dealing ? 900 : 0);
 }
+const aTable = q => !q.retire && !q.joueuse;
 function pickPersos() {
-  const pool = B.PERSOS.map((_, i) => i).filter(i => !B.PERSOS[i].joueuse);   // Marianne joue elle-même : jamais tirée comme robot
+  const pool = B.PERSOS.map((_, i) => i).filter(i => aTable(B.PERSOS[i]));   // ni Marianne (elle joue en Sud), ni les personnages retirés
   for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
   const picks = pool.slice(0, 3);
   // Roger, le chef du bridge, vient plus souvent : environ une donne sur trois, volontiers en partenaire
   const chef = B.PERSOS.indexOf(chefOf());
-  if (!picks.includes(chef) && Math.random() < 0.2) picks[2] = chef;
+  if (!picks.includes(chef) && Math.random() < 0.15) picks[2] = chef;
   return picks;
 }
 const backAct = () => G.game && (G.game.online || G.game.phase !== 'end') ? 'resume' : 'go:home';
@@ -217,14 +228,14 @@ function renderTour() {
   </div></div>`;
 }
 /* ---------- La découverte des personnages ---------- */
-// l'ordre d'affichage des personnages (choix de Menzo) : Roger, Menzo, Marianne, Christine, Anne-Marie, puis les autres
-const PERSO_TETE = ['Roger', 'Menzo', 'Marianne', 'Christine', 'Anne-Marie'];
+// l'ordre d'affichage des personnages, choisi par Menzo (13/11/2026)
+const PERSO_TETE = ['Roger', 'Menzo', 'Marianne', 'Christine', 'Anne-Marie', 'Colette', 'Dédé', 'Thierry', 'Cathy', 'Annick', 'Tao', 'Elisabeth', 'Roseline', 'Florence', 'Joëlle'];
 const persosEnOrdre = list => list.slice().sort((a, b) => {
   const ia = PERSO_TETE.indexOf(a.name), ib = PERSO_TETE.indexOf(b.name);
   return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || B.PERSOS.indexOf(a) - B.PERSOS.indexOf(b);
 });
 function renderPersos() {
-  const list = persosEnOrdre(B.PERSOS), n = B.PERSOS.filter(q => !q.joueuse).length;
+  const list = persosEnOrdre(B.PERSOS.filter(q => !q.retire)), n = B.PERSOS.filter(aTable).length;
   $app.innerHTML = `<div class="page"><div class="inner">
     <button class="btn back" data-act="${backAct()}">← Retour</button>
     <h1>Les personnages</h1>
@@ -1794,7 +1805,7 @@ function renderStats() {
 }
 function persoStatsHTML() {
   const wl = G.stats.wl || {};
-  const list = persosEnOrdre(B.PERSOS.filter(q => wl[q.name]));
+  const list = persosEnOrdre(B.PERSOS.filter(q => wl[q.name] && !q.retire));
   if (!list.length) return '';
   const cell = w => w.v + w.d ? `<span class="w">✓ ${w.v}</span> <span class="l">✗ ${w.d}</span>` : '—';
   return `<h2>Avec et contre les personnages</h2><table class="hist persos"><tr><th></th><th>Personnage</th><th>Avec (partenaire)</th><th>Contre (adversaire)</th></tr>
