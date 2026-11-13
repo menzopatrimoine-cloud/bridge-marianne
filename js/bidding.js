@@ -534,8 +534,10 @@ function openerRebid1(c) {
   }
   // Sans-Atout
   if (rl === 1) {
-    o.push(opt('2N', M('2SA à saut', { pts: [18, 19], unit: 'H', fiche: '05', text: 'Main régulière de 18 ou 19 points H.' }), h => isRegular(h) && hcp(h) >= 18 && hcp(h) <= 19));
-    o.push(opt('1N', M('1SA', { pts: [12, 14], unit: 'H', fiche: '05', text: 'Main régulière minimale (12 à 14 points H), sans fit.' }), h => isRegular(h) && hcp(h) <= 14));
+    // retour à SA avec un jeu régulier (5-3-3-2) : 1SA 12-14, 2SA 15-17, 3SA 18 et plus (fiche 05, ajout du professeur)
+    o.push(opt('3N', M('Retour à SA : 3SA', { pts: [18, 21], unit: 'H', fiche: '05', conclusion: true, text: 'Jeu régulier (5-3-3-2 par exemple) de 18 points H ou plus.' }), h => isRegular(h) && hcp(h) >= 18));
+    o.push(opt('2N', M('Retour à SA : 2SA', { pts: [15, 17], unit: 'H', fiche: '05', text: 'Jeu régulier (5-3-3-2 par exemple) de 15 à 17 points H.' }), h => isRegular(h) && hcp(h) >= 15 && hcp(h) <= 17));
+    o.push(opt('1N', M('Retour à SA : 1SA', { pts: [12, 14], unit: 'H', fiche: '05', text: 'Jeu régulier minimum (12 à 14 points H), sans fit.' }), h => isRegular(h) && hcp(h) <= 14));
   } else {
     o.push(opt('3N', M('3SA', { pts: [15, 19], unit: 'H', fiche: '05', conclusion: true, text: 'Main régulière de 15 à 19 points H.' }), h => isRegular(h) && hcp(h) >= 15 && hcp(h) <= 19));
     o.push(opt('2N', M('2SA', { pts: [12, 14], unit: 'H', fiche: '05', text: 'Main régulière minimale (12 à 14 points H).' }), h => isRegular(h) && hcp(h) <= 14));
@@ -1065,6 +1067,9 @@ function respToDoubleOpts(c, od) {
   const cue = cheapest(c, od);
   const o = [];
   const hp = hcp;
+  const ZF = '0 à 7 points H, ou 8 à 10 points H sans arrêt dans la couleur d\'ouverture';
+  const mLow = t => M('Réponse obligatoire au palier le plus bas', { pts: [0, 10], unit: 'H', len: ln({ [dn(t)]: [3, 13] }), fiche: '13',
+    text: `Au moins 3 cartes à ${nm(t)} (4 cartes et plus de préférence) : ${ZF}.` });
   o.push(opt('P', M('Passe : contre transformé en punitif', { pts: [8, 37], unit: 'H', len: ln({ [od]: [5, 13] }), fiche: '13',
     text: `Exceptionnel : au moins 8 points H et 5 bonnes cartes à ${nm(os)} (3 levées sûres). Le contre devient punitif.` }), h => hp(h) >= 8 && L(h, os) >= 5 && bigHonors(h, os) >= 2));
   // Zone forte (11 H et plus)
@@ -1093,19 +1098,19 @@ function respToDoubleOpts(c, od) {
   // Zone faible (0-7 H)
   for (const s of majors) {
     const ch = cheapest(c, dn(s));
-    o.push(opt(ch, M('Réponse obligatoire : 4 cartes', { pts: [0, 7], unit: 'H', len: ln({ [dn(s)]: [4, 13] }), fiche: '13', text: `4 cartes ou plus à ${nm(s)}, 0 à 7 points H.` }),
+    o.push(opt(ch, mLow(s),
       h => L(h, s) >= 4 && (m4(h).length === 1 || L(h, s) > L(h, majors.find(x => x !== s)) || (L(h, s) === L(h, majors.find(x => x !== s)) && s === 1))));
   }
-  if (od === 'C') o.push(opt('1D', M('Réponse obligatoire : carreaux', { pts: [0, 7], unit: 'H', len: ln({ D: [4, 13], H: [0, 3], S: [0, 3] }), fiche: '13', text: '4 cartes à Carreau, pas de Majeure de 4 cartes.' }), h => L(h, 2) >= 4));
-  if (od === 'D') o.push(opt('2C', M('Réponse obligatoire : 5 trèfles', { pts: [0, 7], unit: 'H', len: ln({ C: [5, 13], H: [0, 3], S: [0, 3] }), fiche: '13', text: 'Exceptionnel : 5 cartes à Trèfle, pas de Majeure de 4 cartes.' }), h => L(h, 3) >= 5));
+  if (od === 'C') o.push(opt('1D', M('Réponse obligatoire : carreaux', { pts: [0, 10], unit: 'H', len: ln({ D: [4, 13], H: [0, 3], S: [0, 3] }), fiche: '13', text: `4 cartes à Carreau, pas de Majeure de 4 cartes : ${ZF}.` }), h => L(h, 2) >= 4));
+  if (od === 'D') o.push(opt('2C', M('Réponse obligatoire : 5 trèfles', { pts: [0, 10], unit: 'H', len: ln({ C: [5, 13], H: [0, 3], S: [0, 3] }), fiche: '13', text: `Exceptionnel : 5 cartes à Trèfle, pas de Majeure de 4 cartes (${ZF}).` }), h => L(h, 3) >= 5));
   for (const s of majors) {
     const ch = cheapest(c, dn(s));
-    o.push(opt(ch, M('Couleur au palier le plus bas', { pts: [0, 7], unit: 'H', len: ln({ [dn(s)]: [3, 3] }), fiche: '13', text: `Réponse obligatoire au palier le plus bas : 3 cartes à ${nm(s)}.` }), h => L(h, s) >= 3));
+    o.push(opt(ch, mLow(s), h => L(h, s) >= 3));
   }
   for (const s of [3, 2, 1, 0]) {
     if (s === os) continue;
     const ch = cheapest(c, dn(s));
-    o.push(opt(ch, M('Réponse obligatoire', { pts: [0, 7], unit: 'H', fiche: '13', text: `Réponse obligatoire : la couleur la moins mauvaise (${nm(s)}).` }), h => L(h, s) >= 3));
+    o.push(opt(ch, M('Réponse obligatoire', { pts: [0, 10], unit: 'H', fiche: '13', text: `Réponse obligatoire : la couleur la moins mauvaise (${nm(s)}) ; ${ZF}.` }), h => L(h, s) >= 3));
   }
   return o;
 }
@@ -1338,7 +1343,8 @@ function genericDecide(c, h) {
   // seuils de manche de la fiche 08 : 3SA ≥ 25 H, 4♥/4♠ ≥ 27 HS, 5♣/5♦ ≥ 30 HS (points de soutien compris)
   const need = gl === 5 ? 30 : den === 'N' ? 25 : 27;
   let goal;
-  if (tMin >= 33 && (trump >= 0 || den === 'N')) goal = 'slam';
+  const tSlam = den === 'N' ? HL(h) + pm.min : tMin;   // à Sans-Atout, les points de distribution d'un fit ne comptent pas
+  if (tSlam >= 33 && (trump >= 0 || den === 'N')) goal = 'slam';
   else if (tMin >= need || gfActive) goal = 'game';
   else if (tMin >= need - 4 && my + Math.min(pm.max, pm.min + 8) >= need + 1 && pm.max - pm.min >= 2) goal = 'invite';
   else goal = 'part';
@@ -1361,7 +1367,7 @@ function genericDecide(c, h) {
       const sl = (tMin >= 37 ? '7' : '6') + den;
       if (legal(sl)) return { call: sl };
     } else {
-      const sl = tMin >= 37 ? '7N' : '6N';
+      const sl = tSlam >= 37 ? '7N' : '6N';
       if (legal(sl)) return { call: sl };
     }
     goal = 'game';

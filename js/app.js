@@ -81,7 +81,7 @@ const seatName = s => s === 2 ? 'Vous' : nameOf(s);
 const chefOf = () => B.PERSOS.find(q => q.av.chef);
 const CHEF_BADGE = '<span class="chef-badge">★ Chef du bridge</span>';
 const CHEF_COURS = '<div class="chef-cours"><b>Le mardi :</b> cours intermédiaires et confirmés<br><b>Le jeudi :</b> cours débutants</div>';
-const FICHE_PAGES = { '01': 3, '02': 1, '03': 1, '04': 2, '05': 1, '06': 2, '07': 3, '08': 2, '09': 2, '10': 2, '11': 2, '12': 2, '13': 2, '14': 3, '15': 1, '16': 1, '17': 1 };
+const FICHE_PAGES = { '01': 3, '02': 1, '03': 1, '04': 2, '05': 2, '06': 2, '07': 3, '08': 2, '09': 2, '10': 2, '11': 2, '12': 2, '13': 2, '14': 3, '15': 1, '16': 1, '17': 1 };
 const ficheBtn = f => FICHE_PAGES[f] ? `<button class="btn fiche-link" data-fiche="${f}">${ICONS.book}<span>Ouvrir la fiche du cours n° ${f} : ${rich(B.FICHES[f])}</span></button>` : '';
 function callHTML(c, long) {
   if (c === 'P') return 'Passe';
@@ -285,17 +285,44 @@ function missionSlipCheck(seat, card) {
   } catch (e) { return false; }
 }
 // les fiches en PDF, prêtes à imprimer (un onglet s'ouvre ; sur l'iPad : Partager, puis Imprimer)
-const PDF_V = 3;   // à augmenter quand une fiche PDF change
+const PDF_V = 4;   // à augmenter quand une fiche PDF change
 const fichePdf = k => `fiches/pdf/fiche-${k}.pdf?v=${PDF_V}`;
 const pdfLink = (href, label, cls) => `<a class="btn pdf-btn ${cls || ''}" href="${href}" target="_blank" rel="noopener">${ICONS.print}<span>${label}</span></a>`;
-const ficheListHTML = () => `<div class="fiche-list">${Object.keys(B.FICHES).sort().map(k => `<div class="fiche-row"><button class="btn" data-fiche="${k}">${ICONS.book}<span>Fiche ${k} : ${rich(B.FICHES[k])}</span></button>${pdfLink(fichePdf(k), 'PDF')}</div>`).join('')}</div>`;
+// les fiches dans l'ordre chronologique des enchères : l'ouverture, la réponse du partenaire, la 2e enchère de l'ouvreur, la 2e du partenaire…
+// « 14:2 » = la fiche 14 ouverte à sa page 2 (une même fiche peut servir à deux étapes)
+const FICHE_PLAN = [
+  { t: 'Les bases', s: [{ f: ['01', '16'] }] },
+  { t: 'L\'ouvreur : la 1ère enchère (l\'ouverture)', s: [
+    { t: 'Les ouvertures et l\'échelle des points', f: ['02'] },
+    { t: 'Les ouvertures fortes', f: ['07', '08'] },
+    { t: 'Les ouvertures faibles et les barrages', f: ['06', '12'] }] },
+  { t: 'Le partenaire : la 1ère réponse', s: [
+    { t: 'Sur une ouverture à la couleur', f: ['03', '04', '15'] },
+    { t: 'Sur l\'ouverture 1 SA', f: ['11'] }] },
+  { t: 'L\'ouvreur : la 2ème enchère (la confirmation)', s: [
+    { t: 'Après une ouverture à la couleur', f: ['05'] },
+    { t: 'Après l\'ouverture 1 SA', f: ['14'] }] },
+  { t: 'Le partenaire : la 2ème enchère', s: [
+    { t: 'Après l\'ouverture 1 SA', f: ['14:2', '11:1'] }] },
+  { t: 'Les adversaires : l\'intervention', s: [
+    { t: 'Intervenir sur l\'ouverture adverse', f: ['10', '17'] },
+    { t: 'Répondre au contre d\'appel du partenaire', f: ['13'] }] },
+  { t: 'Le jeu de la carte', s: [{ f: ['09'] }] },
+];
+const FICHE_REF = { '14:2': 'Fiche 14, pages 2 et 3 : la 2ème enchère du répondant après 1 SA', '11:1': 'Fiche 11 : la suite du Stayman (2ème réponse du répondant)' };
+const ficheRow = x => {
+  const [k, pg] = x.split(':');
+  return `<div class="fiche-row"><button class="btn" data-fiche="${k}"${pg ? ` data-page="${pg}"` : ''}>${ICONS.book}<span>${FICHE_REF[x] ? rich(FICHE_REF[x]) : `Fiche ${k} : ${rich(B.FICHES[k])}`}</span></button>${pdfLink(fichePdf(k), 'PDF')}</div>`;
+};
+const ficheListHTML = () => `<div class="fiche-plan">${FICHE_PLAN.map((sec, i) => `<h2 class="fp-sec"><span class="fp-n">${i + 1}</span>${sec.t}</h2>
+  ${sec.s.map((ss, j) => `${ss.t ? `<h3 class="fp-sub">${i + 1}.${j + 1} · ${ss.t}</h3>` : ''}<div class="fiche-list">${ss.f.map(ficheRow).join('')}</div>`).join('')}`).join('')}</div>`;
 function renderFiches() {
   const inGame = backAct() === 'resume';
   $app.innerHTML = `<div class="page"><div class="inner">
     <button class="btn back ${inGame ? 'sticky' : ''}" data-act="${backAct()}">${inGame ? '← Retour au jeu' : '← Retour'}</button>
     <h1>Les fiches du cours</h1>
     <div class="chef-box">${B.avatarSVG(chefOf())}<div><div class="pc-n"><b>Roger</b>${CHEF_BADGE}</div><p>Les fiches du cours ont été créées par Roger, le chef du bridge de l'Hippocampe.</p></div></div>
-    <p>Toutes les fiches d'apprentissage, en gros caractères. Touchez une fiche pour l'ouvrir en grand.</p>
+    <p>Toutes les fiches d'apprentissage, en gros caractères, <b>dans l'ordre des enchères</b> : l'ouverture, la réponse du partenaire, la 2ème enchère de l'ouvreur, puis celle du partenaire. Touchez une fiche pour l'ouvrir en grand.</p>
     <div class="pdf-all">${pdfLink(`fiches/pdf/cours-complet.pdf?v=${PDF_V}`, 'Imprimer tout le cours (PDF)', 'gold')}</div>
     <p class="pdf-how">Pour imprimer une seule fiche, touchez « PDF » à côté d'elle. Sur l'iPad, touchez ensuite le bouton Partager, puis « Imprimer ».</p>
     ${ficheListHTML()}
@@ -811,6 +838,7 @@ function finishPlay() {
   if (B.sideOf(ct.declarer) === 0) say(g.result.made ? 'Contrat réussi !' : 'Chute de ' + (-diff) + '.');
   else say(g.result.made ? 'Les adversaires réussissent leur contrat.' : 'Bravo, le contrat adverse chute !');
   if (good && anim()) confetti();
+  if (g.ghost && g.result.ns > g.ghost.ns) { if (!good && anim()) confetti(); setTimeout(() => say('Bravo, vous avez battu votre fantôme !'), 1500); }
 }
 function record() {
   const g = G.game;
@@ -1018,11 +1046,72 @@ function menu() {
     else go(v);
   });
 }
+/* ---------- Le fantôme : rejouer la même donne contre son meilleur essai (comme au jeu de course) ---------- */
+const ghostOk = g => !!g && !g.online && !g.mission && !g.mini;
+function ghostOf(g) {
+  const ct = g.contract;
+  return { auction: g.auction.slice(), tricks: g.play ? g.play.tricks.map(t => ({ winner: t.winner, cards: t.cards.map(x => ({ seat: x.seat, card: x.card })) })) : [],
+    contract: ct ? { level: ct.level, den: ct.den, dbl: ct.dbl, declarer: ct.declarer } : null,
+    ns: g.result ? g.result.ns : 0, nTricks: g.result ? g.result.tricks || 0 : 0, passed: !!(g.result && g.result.passed) };
+}
+function replayGhost() {
+  const g = G.game;
+  if (!ghostOk(g) || g.phase !== 'end' || !g.result) return;
+  const cur = ghostOf(g), prev = g.ghost;
+  const best = !prev || cur.ns >= prev.ns ? cur : prev;      // le fantôme est votre meilleur essai
+  best.tries = (prev ? prev.tries || 1 : 0) + 1;
+  if (g.learn) { const l = g.learn; startLearn(l.kind, l.group, l.i); }
+  else newDeal(true);
+  if (!G.game || G.game === g) return;
+  G.game.ghost = best;
+  save();
+  render();
+  toast(`${ICONS.ghost} Votre fantôme rejoue la donne avec vous : c'est votre meilleur essai. Ce qu'il avait annoncé s'affiche dans la boîte d'enchères, et la carte qu'il avait jouée est entourée de violet.${G.game.expert ? EXPERT_TXT : ''}`, 6500);
+}
+// ce que le fantôme avait fait au même moment
+function ghostCall(g) {
+  if (!g.ghost) return null;
+  const ga = g.ghost.auction, n = g.auction.length;
+  if (n >= ga.length || g.auction.some((c, i) => ga[i] !== c)) return null;
+  return ga[n];
+}
+function ghostCard(g, seat) {
+  const gh = g.ghost, p = g.play, ct = g.contract, gc = gh && gh.contract;
+  // même contrat, même déclarant, et le pli en cours a commencé comme celui du fantôme
+  if (!gh || !p || !gc || !ct || gc.declarer !== ct.declarer || gc.den !== ct.den || gc.level !== ct.level) return null;
+  const t = gh.tricks[p.tricks.length];
+  if (!t || p.trick.some((x, i) => !t.cards[i] || t.cards[i].seat !== x.seat || t.cards[i].card !== x.card)) return null;
+  const x = t.cards.find(y => y.seat === seat);
+  return x ? x.card : null;
+}
+function ghostWon(g) {
+  const w = [0, 0];
+  g.ghost.tricks.slice(0, g.play ? g.play.tricks.length : 0).forEach(t => { w[B.sideOf(t.winner)]++; });
+  return w;
+}
+const ghostWho = s => s === 2 ? 'vous' : s === 0 ? 'votre partenaire' : s === 1 ? 'Est' : 'Ouest';
+const ghostDesc = x => x.passed || !x.contract ? 'donne passée' : `${contractHTML(x.contract)} par ${ghostWho(x.contract.declarer)}, ${plural(x.nTricks, 'pli')}, marque de votre camp ${x.ns > 0 ? '+' : ''}${x.ns}`;
+function ghostBoxHTML(g) {
+  const gh = g.ghost;
+  let live = '';
+  if (g.phase === 'play' && gh.tricks.length) { const w = ghostWon(g); live = `<br>Au même moment, il avait : Nord-Sud <b>${w[0]}</b> · Est-Ouest <b>${w[1]}</b>`; }
+  const n = gh.tries || 1;
+  return `<div class="ghost-box">${ICONS.ghost}<div><b>Votre fantôme</b> <small>(${n > 1 ? `le meilleur de vos ${n} essais` : 'votre essai précédent'})</small><br>${ghostDesc(gh)}${live}</div></div>`;
+}
+function ghostResHTML(g) {
+  const gh = g.ghost, d = g.result.ns - gh.ns;
+  const msg = d > 0 ? 'Bravo, vous avez battu votre fantôme !' : d === 0 ? 'Égalité avec votre fantôme.' : 'Votre fantôme reste devant : réessayez !';
+  return `<div class="ghost-res ${d > 0 ? 'win' : d < 0 ? 'lose' : ''}">${ICONS.ghost}<div><b>${msg}</b><br>Fantôme : ${ghostDesc(gh)}<br>Vous : ${ghostDesc(ghostOf(g))}</div></div>`;
+}
+const GHOST_BTN = () => `<button class="btn ghost-btn" data-act="ghost">${ICONS.ghost}Rejouer contre mon fantôme</button>`;
 function confirmReplay() {
   if (G.game && G.game.mission) { startMission(G.game.mission); return; }
-  if (G.game && G.game.learn) { const l = G.game.learn; startLearn(l.kind, l.group, l.i); return; }
+  // le fantôme (meilleur essai) suit la donne quand on la recommence
+  const gh = G.game && G.game.ghost;
+  const keep = () => { if (gh && G.game && !G.game.mini) { G.game.ghost = gh; save(); render(); } };
+  if (G.game && G.game.learn) { const l = G.game.learn; startLearn(l.kind, l.group, l.i); keep(); return; }
   modal(`<h2>Recommencer cette donne ?</h2><p>Les mêmes cartes seront redistribuées et les enchères reprendront du début.</p>
-    <div class="btns"><button class="btn primary" data-m="yes">Recommencer</button><button class="btn" data-m="no">Annuler</button></div>`, v => { if (v === 'yes') newDeal(true); });
+    <div class="btns"><button class="btn primary" data-m="yes">Recommencer</button><button class="btn" data-m="no">Annuler</button></div>`, v => { if (v === 'yes') { newDeal(true); keep(); } });
 }
 const clearToast = () => { const t = document.querySelector('.toast'); if (t) t.remove(); };
 function go(s) {
@@ -1116,9 +1205,11 @@ function renderGame() {
   };
   const userTurnSeat = phase === 'play' && userControls(turn) && !holdTrick ? turn : -1;
   const legal = userTurnSeat >= 0 ? B.legalCards(p, userTurnSeat) : [];
+  const gCard = userTurnSeat >= 0 && g.ghost ? ghostCard(g, userTurnSeat) : null;
   const cardCls = (s, c) => {
     const cls = [];
     if (userTurnSeat === s) cls.push(legal.includes(c) ? 'playable' : 'dim');
+    if (userTurnSeat === s && c === gCard && legal.includes(c)) cls.push('ghost');
     if (selected === c) cls.push('sel');
     if (hintCard === c) cls.push('hint');
     return cls.join(' ');
@@ -1221,6 +1312,7 @@ function bidboxHTML() {
   bidboxEnter = false;
   return `<div class="bidbox ${enter ? 'enter' : ''}">
     <div class="title">${bidLevel ? 'Choisissez la couleur' : 'À vous d\'annoncer : choisissez le palier'}</div>
+    ${ghostCall(g) ? `<div class="ghost-line">${ICONS.ghost}Votre fantôme avait dit : <b>${callHTML(ghostCall(g), true)}</b></div>` : ''}
     <div class="row levels">${lv.map(l => `<button data-act="lvl:${l}" class="${bidLevel === l ? 'on' : ''}" ${levelOk(l) ? '' : 'disabled'}>${l}</button>`).join('')}</div>
     <div class="row dens">${dens.map(([d, s]) => {
       const ok = bidLevel && B.isLegal(bidLevel + d, g.auction, g.dealer);
@@ -1255,6 +1347,7 @@ function panelHTML(status) {
       ${m ? `<div class="goal mi-progress">Objectif : <b>${B.mission.goalOf(m)} pli${B.mission.goalOf(m) > 1 ? 's' : ''}</b> pour Nord-Sud dans cette fin de donne. Déjà faits : <b>${missionTricks(g)}</b>.</div>`
         : `<div class="goal">Il faut <b>${ct.level + 6} plis</b> au camp ${side === 0 ? 'Nord-Sud' : 'Est-Ouest'} (les défenseurs en veulent ${8 - ct.level}).</div>`}</div>`;
   }
+  if (g.ghost && !g.online) html += ghostBoxHTML(g);
   if (g.mini) html += `<div class="explain"><div class="t">${ICONS.hint} Besoin d'aide ?</div><div class="txt">Au mini-bridge, il n'y a pas d'enchères : on compte les points et on choisit le contrat. Le bouton « Conseil » vous guide à chaque étape.</div></div>`;
   else if (m) html += `<div class="explain"><div class="t">${ICONS.hint} Besoin d'aide ?</div><div class="txt">Le bouton « Conseil » donne un indice et la bonne carte. Si une carte rend la mission impossible, l'appli vous prévient : « Annuler » permet de rejouer le coup.</div></div>`;
   else html += auctionHTML() + explainHTML();
@@ -1263,7 +1356,7 @@ function panelHTML(status) {
   if (tel()) {
     const ct = g.contract;
     const sum = m ? `<div class="sum">${contractHTML(ct)} par ${nameOf(ct.declarer)} · objectif <b>${missionTricks(g)} / ${B.mission.goalOf(m)}</b> plis</div>`
-      : ct && g.phase !== 'bidding' ? `<div class="sum">${contractHTML(ct)} par ${nameOf(ct.declarer)} · Nord-Sud <b>${p.won[0]}</b> · Est-Ouest <b>${p.won[1]}</b></div>`
+      : ct && g.phase !== 'bidding' ? `<div class="sum">${contractHTML(ct)} par ${nameOf(ct.declarer)} · Nord-Sud <b>${p.won[0]}</b> · Est-Ouest <b>${p.won[1]}</b>${g.ghost && g.phase === 'play' && g.ghost.tricks.length ? ` · <span class="gh">fantôme ${ghostWon(g)[0]}</span>` : ''}</div>`
       : g.mini ? `<div class="sum">${g.board}</div>` : `<div class="sum">${boardLabel(g)} · Donneur : <b>${seatName(g.dealer)}</b></div>`;
     html += `<div class="bar ${status ? 'two' : ''}">${status || sum}<button class="menu-btn" data-act="menu"><span class="bars"></span>Menu</button>${status ? sum : ''}</div>`;
   }
@@ -1310,6 +1403,7 @@ function explainHTML() {
   </div>`;
 }
 const ICONS = {
+  ghost: '<svg class="ico ghost-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V10.5a7 7 0 0 1 14 0V21l-2.300-1.800L14.400 21l-2.400-1.800L9.600 21l-2.300-1.800z"/><circle cx="9.600" cy="10.800" r="1.200" fill="currentColor"/><circle cx="14.400" cy="10.800" r="1.200" fill="currentColor"/></svg>',
   print: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 8V3h10v5"/><rect x="3" y="8" width="18" height="9" rx="2"/><path d="M7 14h10v7H7z"/></svg>',
   net: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.8 2.6 4 5.7 4 9s-1.200 6.400-4 9c-2.800-2.600-4-5.700-4-9s1.200-6.400 4-9z"/></svg>',
   hint: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.6 10.8c.6.5 1 1.2 1 2V17h5.2v-1.2c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></svg>',
@@ -1342,8 +1436,8 @@ function actionsHTML() {
   }
   if (g.online) return `${onlineReadyBtn('style="grid-column:1/-1"')}${more}`;
   if (g.mission) return `<button class="btn primary" data-act="go:missions" style="grid-column:1/-1">Les missions</button>${more}`;
-  if (g.learn) return `<button class="btn primary" data-act="learn-next" style="grid-column:1/-1">Donne suivante</button>${more}`;
-  return `<button class="btn primary" data-act="new" style="grid-column:1/-1">Donne suivante</button>${more}`;
+  // fin de donne : donne suivante, ou la même contre son fantôme
+  return `<button class="btn primary" data-act="${g.learn ? 'learn-next' : 'new'}" ${ghostOk(g) ? '' : 'style="grid-column:1/-1"'}>Donne suivante</button>${ghostOk(g) ? GHOST_BTN() : ''}${more}`;
 }
 
 function endScreenHTML() {
@@ -1378,13 +1472,13 @@ function endScreenHTML() {
       </table><p style="font-size:16px;color:var(--muted);margin:6px 0 0">Carte soulignée : l'entame du pli. Case dorée : la carte gagnante.</p></details>`;
   }
   return `<div class="end"><div class="box">
-    <div class="res ${cls}">${res}</div>${scoreTxt}${quip}
+    <div class="res ${cls}">${res}</div>${scoreTxt}${g.ghost && !g.online ? ghostResHTML(g) : ''}${quip}
     ${g.learn ? `<button class="btn green mi-comment" data-act="comment">${ICONS.book}Lire le commentaire de la donne</button>` : ''}
     ${g.online ? `<div class="on-totals">${onlineTotalsHTML()}</div>` : `<div class="an-status">${anStatusHTML()}</div>`}
     <div class="compass">${hbox(0, 'hn')}${hbox(3, 'hw')}<div class="mid">${boardLabel(g)}<br>Donneur : ${seatName(g.dealer)}</div>${hbox(1, 'he')}${hbox(2, 'hs')}</div>
     ${tricks}
     <div class="btns">${g.online ? onlineReadyBtn('') : `<button class="btn primary" data-act="${g.learn ? 'learn-next' : 'new'}">Donne suivante</button>
-      <button class="btn" data-act="replay">Rejouer cette donne</button>
+      ${GHOST_BTN()}
       <button class="btn" data-act="undo" ${g.undo.length ? '' : 'disabled'}>${ICONS.undo}Annuler la dernière carte</button>`}</div>
   </div></div>`;
 }
@@ -1935,7 +2029,7 @@ function renderAnalysis() {
       <button class="btn gold" data-act="revue:best">★ Voir la meilleure façon de jouer</button>
     </div>` : ''}
     <div class="an-btns">${m ? '<button class="btn green" data-act="replay">↻ Recommencer la mission</button><button class="btn" data-act="go:missions">Toutes les missions</button>'
-      : `<button class="btn green" data-act="replay">↻ Rejouer cette donne</button><button class="btn" data-act="${g.learn ? 'learn-next' : 'new'}">Donne suivante</button>`}</div>
+      : `${G.game.mini ? '<button class="btn green" data-act="replay">↻ Rejouer cette donne</button>' : GHOST_BTN()}<button class="btn" data-act="${g.learn ? 'learn-next' : 'new'}">Donne suivante</button>`}</div>
     <p class="an-note">${m ? 'Dans les missions, l\'ordinateur calcule exactement chaque coup en voyant toutes les cartes.' : 'Pour les 8 derniers plis, l\'ordinateur calcule exactement en voyant toutes les cartes. Avant, il suit les conseils du cours, comme le bouton « Conseil ».'}</p>
   </div></div>`;
 }
@@ -2357,6 +2451,7 @@ $app.addEventListener('click', e => {
   const [k, v, w, x] = act.split(':');
   if (k === 'new') newDeal(false, null, v === 'expert' ? true : v === 'normal' ? false : !!(G.game && G.game.expert));
   else if (k === 'replay') confirmReplay();
+  else if (k === 'ghost') replayGhost();
   else if (k === 'resume') go('game');
   else if (k === 'on-create') onlineCreate();
   else if (k === 'on-join') onlineJoin();
@@ -2410,7 +2505,8 @@ $app.addEventListener('click', e => {
   }
 });
 // une fiche du cours, en grand, par-dessus le jeu (images en cache : marche sans internet)
-function openFiche(id, think) {
+const IMG_V = { '05': 5, '11': 5, '13': 5, '14': 6 };   // version des images d'une fiche refaite (cache de l'iPad)
+function openFiche(id, think, page) {
   const n = FICHE_PAGES[id];
   if (!n) return;
   let zoom = 1;
@@ -2422,11 +2518,16 @@ function openFiche(id, think) {
     ${inGame ? '' : pdfLink(fichePdf(id), 'PDF')}<button class="btn" data-z="-1">A−</button><button class="btn" data-z="1">A+</button><button class="btn primary" data-close>Fermer</button></div>
     ${think ? `<div class="fiche-think"><div class="ft-txt"><b>Réfléchissez avec la fiche.</b> Votre main : ${[0, 1, 2, 3].map(s => `<span class="ft-s">${su(s)} ${B.ranksIn(think.hand, s).map(x => B.RANK_TXT[x]).join(' ') || '—'}</span>`).join('')}<span class="ft-p"><b>${B.hcp(think.hand)} points H</b>, ${B.HL(think.hand)} points HL</span></div>
       <button class="btn gold" data-answer>Voir la réponse</button></div>` : ''}
-    <div class="pages">${Array.from({ length: n }, (_, i) => `<img src="fiches/f${id}-${i + 1}.jpg?v=${id === '14' ? 5 : 4}" alt="Fiche ${id}, page ${i + 1}">`).join('')}</div>
+    <div class="pages">${Array.from({ length: n }, (_, i) => `<img src="fiches/f${id}-${i + 1}.jpg?v=${IMG_V[id] || 4}" alt="Fiche ${id}, page ${i + 1}">`).join('')}</div>
     <button class="btn primary fv-close" data-close>✕ Fermer la fiche${inGame ? ' et revenir au jeu' : ''}</button>`;
   document.body.appendChild(v);
   snd('select');
   const pages = v.querySelector('.pages');
+  if (page > 1) {
+    const imgs = [...pages.querySelectorAll('img')];
+    Promise.all(imgs.map(i => i.complete ? 0 : new Promise(r => { i.onload = i.onerror = r; })))
+      .then(() => { if (imgs[page - 1]) pages.scrollTop = imgs[page - 1].offsetTop - pages.offsetTop - 8; });
+  }
   const close = () => { v.remove(); document.removeEventListener('keydown', onKey); };
   const onKey = e => { if (e.key === 'Escape') close(); };
   document.addEventListener('keydown', onKey);
@@ -2437,7 +2538,7 @@ function openFiche(id, think) {
     if (z) { zoom = Math.max(0.6, Math.min(2.2, zoom + 0.4 * +z.dataset.z)); pages.style.setProperty('--z', zoom); }
   });
 }
-document.addEventListener('click', e => { const f = e.target.closest('[data-fiche]'); if (f) openFiche(f.dataset.fiche); });
+document.addEventListener('click', e => { const f = e.target.closest('[data-fiche]'); if (f) openFiche(f.dataset.fiche, null, +f.dataset.page || 0); });
 function showPerso(s) {
   const q = perso(s), w = wlOf(q.name, s === 0);
   const pl = (n, word) => `<b>${n}</b> ${word}${n > 1 ? 's' : ''}`;

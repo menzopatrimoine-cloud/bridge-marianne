@@ -766,3 +766,25 @@ body.tel .fiche-view .ttl { flex-basis: 100%; }
   min-height: 62px; font-size: 22px; padding: 8px 26px; white-space: nowrap; max-width: calc(100% - 24px); box-shadow: 0 8px 22px rgba(0,0,0,.45); z-index: 2; }
 body.tel .fiche-view .fv-close { font-size: 18px; min-height: 54px; padding: 6px 16px; }
 .page .btn.back.sticky { position: sticky; top: 8px; z-index: 5; box-shadow: 0 4px 14px rgba(0,0,0,.18); }
+
+/* Fiches classées dans l'ordre des enchères */
+.page .fp-sec { display: flex; align-items: center; gap: 10px; margin: 26px 0 8px; font-size: 25px; color: var(--navy); }
+.fp-n { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; background: var(--navy); color: #fff; font-size: 19px; flex: none; }
+.fp-sub { margin: 12px 0 6px 4px; font-size: 19px; color: #1f5b42; }
+.fiche-plan .fiche-list { margin-bottom: 4px; }
+body.tel .page .fp-sec { font-size: 21px; }
+/* Le fantôme */
+.ghost-ico { color: #7b5bd6; }
+.toast .ico { width: 1.4em; height: 1.4em; vertical-align: -0.3em; margin-right: 6px; }
+.card.ghost { box-shadow: 0 0 0 4px #9b7be0, 0 0 18px 4px rgba(155, 123, 224, .75); }
+.ghost-line { display: flex; align-items: center; gap: 6px; justify-content: center; font-size: 16px; color: #5b3fb8; font-weight: 700; margin: -2px 0 2px; }
+.ghost-line .ico { width: 20px; height: 20px; }
+.ghost-box { display: flex; gap: 10px; align-items: flex-start; background: #f1ecfc; border: 2px solid #c9b8f2; border-radius: 14px; padding: 8px 12px; margin: 8px 0; font-size: 16px; line-height: 1.35; }
+.ghost-box .ico, .ghost-res .ico { width: 30px; height: 30px; flex: none; }
+.ghost-box small { color: var(--muted); font-weight: 600; }
+.ghost-res { display: flex; gap: 10px; align-items: center; justify-content: center; text-align: left; background: #f1ecfc; border: 2px solid #c9b8f2; border-radius: 14px; padding: 8px 14px; margin: 8px auto; font-size: 17px; line-height: 1.35; max-width: 640px; }
+.ghost-res.win { background: #e3f4e8; border-color: #8ccaa0; }
+.ghost-res.lose { background: #fbeaea; border-color: #e3a5a5; }
+.btn.ghost-btn { background: #6a4fc4; color: #fff; border-color: #5238a6; gap: 8px; }
+.btn.ghost-btn .ico { color: #fff; width: 24px; height: 24px; }
+.sum .gh { color: #5b3fb8; font-weight: 800; }
