@@ -768,6 +768,10 @@ body.tel .fiche-view .fv-close { font-size: 18px; min-height: 54px; padding: 6px
 .page .btn.back.sticky { position: sticky; top: 8px; z-index: 5; box-shadow: 0 4px 14px rgba(0,0,0,.18); }
 
 /* Fiches classées dans l'ordre des enchères */
+.orig-ttl { max-width: 1000px; margin: 22px auto 8px; padding: 10px 14px; background: var(--gold-soft); border-radius: 12px; font-size: 21px; font-weight: 800; color: var(--navy); text-align: center; }
+.fiche-view .pages img.orig { width: calc(min(100%, 1000px) * var(--z, 1)); }
+.fiche-row .orig-btn { grid-column: 1 / -1; justify-content: flex-start; font-size: 17px; min-height: 44px; margin-top: -4px; background: #fff9e8; border-color: #e3cf8f; }
+.fiche-row .orig-btn .ico { width: 22px; height: 22px; }
 .page .fp-sec { display: flex; align-items: center; gap: 10px; margin: 26px 0 8px; font-size: 25px; color: var(--navy); }
 .fp-n { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; background: var(--navy); color: #fff; font-size: 19px; flex: none; }
 .fp-sub { margin: 12px 0 6px 4px; font-size: 19px; color: #1f5b42; }

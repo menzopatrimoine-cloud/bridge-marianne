@@ -312,7 +312,8 @@ const FICHE_PLAN = [
 const FICHE_REF = { '14:2': 'Fiche 14, pages 2 et 3 : la 2ème enchère du répondant après 1 SA', '11:1': 'Fiche 11 : la suite du Stayman (2ème réponse du répondant)' };
 const ficheRow = x => {
   const [k, pg] = x.split(':');
-  return `<div class="fiche-row"><button class="btn" data-fiche="${k}"${pg ? ` data-page="${pg}"` : ''}>${ICONS.book}<span>${FICHE_REF[x] ? rich(FICHE_REF[x]) : `Fiche ${k} : ${rich(B.FICHES[k])}`}</span></button>${pdfLink(fichePdf(k), 'PDF')}</div>`;
+  const orig = ORIG[k] && !pg ? `<button class="btn orig-btn" data-fiche="${k}" data-page="${FICHE_PAGES[k] + 1}">${ICONS.pic}<span>La feuille originale de Roger, en entier</span></button>` : '';
+  return `<div class="fiche-row"><button class="btn" data-fiche="${k}"${pg ? ` data-page="${pg}"` : ''}>${ICONS.book}<span>${FICHE_REF[x] ? rich(FICHE_REF[x]) : `Fiche ${k} : ${rich(B.FICHES[k])}`}</span></button>${pdfLink(fichePdf(k), 'PDF')}${orig}</div>`;
 };
 const ficheListHTML = () => `<div class="fiche-plan">${FICHE_PLAN.map((sec, i) => `<h2 class="fp-sec"><span class="fp-n">${i + 1}</span>${sec.t}</h2>
   ${sec.s.map((ss, j) => `${ss.t ? `<h3 class="fp-sub">${i + 1}.${j + 1} · ${ss.t}</h3>` : ''}<div class="fiche-list">${ss.f.map(ficheRow).join('')}</div>`).join('')}`).join('')}</div>`;
@@ -2506,6 +2507,9 @@ $app.addEventListener('click', e => {
 });
 // une fiche du cours, en grand, par-dessus le jeu (images en cache : marche sans internet)
 const IMG_V = { '05': 5, '11': 5, '13': 5, '14': 6 };   // version des images d'une fiche refaite (cache de l'iPad)
+// la photo de la feuille originale de Roger, montrée en entier à la fin de la fiche
+const ORIG = { '11': 1, '13': 1, '14': 1 };
+const origImg = id => `fiches/f${id}-orig.jpg?v=${ORIG[id]}`;
 function openFiche(id, think, page) {
   const n = FICHE_PAGES[id];
   if (!n) return;
@@ -2518,7 +2522,8 @@ function openFiche(id, think, page) {
     ${inGame ? '' : pdfLink(fichePdf(id), 'PDF')}<button class="btn" data-z="-1">A−</button><button class="btn" data-z="1">A+</button><button class="btn primary" data-close>Fermer</button></div>
     ${think ? `<div class="fiche-think"><div class="ft-txt"><b>Réfléchissez avec la fiche.</b> Votre main : ${[0, 1, 2, 3].map(s => `<span class="ft-s">${su(s)} ${B.ranksIn(think.hand, s).map(x => B.RANK_TXT[x]).join(' ') || '—'}</span>`).join('')}<span class="ft-p"><b>${B.hcp(think.hand)} points H</b>, ${B.HL(think.hand)} points HL</span></div>
       <button class="btn gold" data-answer>Voir la réponse</button></div>` : ''}
-    <div class="pages">${Array.from({ length: n }, (_, i) => `<img src="fiches/f${id}-${i + 1}.jpg?v=${IMG_V[id] || 4}" alt="Fiche ${id}, page ${i + 1}">`).join('')}</div>
+    <div class="pages">${Array.from({ length: n }, (_, i) => `<img src="fiches/f${id}-${i + 1}.jpg?v=${IMG_V[id] || 4}" alt="Fiche ${id}, page ${i + 1}">`).join('')}
+      ${ORIG[id] ? `<div class="orig-ttl">La feuille originale de Roger, en entier</div><img class="orig" src="${origImg(id)}" alt="Fiche ${id}, feuille originale">` : ''}</div>
     <button class="btn primary fv-close" data-close>✕ Fermer la fiche${inGame ? ' et revenir au jeu' : ''}</button>`;
   document.body.appendChild(v);
   snd('select');
