@@ -602,12 +602,34 @@ body.tel .rv-ctrl .btn { min-height: 46px; font-size: 15px; padding: 4px 6px; bo
 .mission-box p { font-size: 17px; line-height: 1.4; margin: 0; }
 .mi-progress { color: var(--ink) !important; }
 .mi-lesson { background: #eef4fb; border: 2px solid #c5d6ee; border-radius: 14px; padding: 10px 14px; font-size: 19px; line-height: 1.45; margin: 10px 0; text-align: left; }
+.mi-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 6px 0 16px; }
+.mi-tabs button { text-align: left; background: #fff; border: 2px solid var(--line); border-radius: 16px; padding: 12px 16px; font-size: 21px; color: var(--ink); line-height: 1.25; }
+.mi-tabs button b { display: block; font-weight: 800; color: var(--navy); }
+.mi-tabs button small { display: block; font-size: 16px; color: var(--muted); font-weight: 600; margin-top: 2px; }
+.mi-tabs button.on { background: var(--navy); border-color: var(--navy); }
+.mi-tabs button.on b, .mi-tabs button.on small { color: #fff; }
+.mi-filters { background: #fff; border: 2px solid var(--line); border-radius: 16px; padding: 10px 14px 4px; margin-bottom: 8px; }
+.mi-fl { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 8px; }
+.mi-fl > span { flex: none; width: 112px; font-size: 18px; font-weight: 800; color: var(--muted); padding-top: 12px; }
+.seg.mi-f { display: inline-flex; flex-wrap: wrap; flex: 1; min-width: 0; }
+.seg.mi-f button { min-width: 0; font-size: 18px; padding: 11px 14px; }
+.seg.mi-f .st { color: #c8901a; letter-spacing: 1px; }
+.seg.mi-f .on .st { color: #ffd77a; }
+.mi-count { font-size: 18px; margin: 6px 0 2px; }
+.mi-th { margin-top: 18px; }
+.mi-th small { display: block; font-size: 16px; font-weight: 600; color: var(--muted); margin-top: 2px; }
+.mi-empty { background: #fff; border: 2px dashed var(--line); border-radius: 16px; padding: 14px; text-align: center; }
 .end .btns .btn.primary + .btn.primary { grid-column: auto; }
 body.tel .mi-row { gap: 10px; padding: 8px 10px; flex-wrap: wrap; }
 body.tel .mi-t { font-size: 18px; flex-basis: 60%; }
 body.tel .mi-row .btn { min-width: 0; flex: 1 1 100%; min-height: 48px; }
 body.tel .mi-lock { width: auto; }
 body.tel .mi-lesson { font-size: 17px; }
+body.tel .mi-tabs { grid-template-columns: 1fr; gap: 8px; }
+body.tel .mi-tabs button { font-size: 19px; padding: 10px 12px; }
+body.tel .mi-fl { flex-direction: column; gap: 4px; }
+body.tel .mi-fl > span { width: auto; padding-top: 0; font-size: 16px; }
+body.tel .seg.mi-f button { font-size: 16px; padding: 9px 10px; }
 .explain .t .ico { width: 24px; height: 24px; flex: none; }
 
 /* mort : la carte soulevée monte à peine, pour ne pas cacher celle du dessus */
@@ -768,10 +790,6 @@ body.tel .fiche-view .fv-close { font-size: 18px; min-height: 54px; padding: 6px
 .page .btn.back.sticky { position: sticky; top: 8px; z-index: 5; box-shadow: 0 4px 14px rgba(0,0,0,.18); }
 
 /* Fiches classées dans l'ordre des enchères */
-.orig-ttl { max-width: 1000px; margin: 22px auto 8px; padding: 10px 14px; background: var(--gold-soft); border-radius: 12px; font-size: 21px; font-weight: 800; color: var(--navy); text-align: center; }
-.fiche-view .pages img.orig { width: calc(min(100%, 1000px) * var(--z, 1)); }
-.fiche-row .orig-btn { grid-column: 1 / -1; justify-content: flex-start; font-size: 17px; min-height: 44px; margin-top: -4px; background: #fff9e8; border-color: #e3cf8f; }
-.fiche-row .orig-btn .ico { width: 22px; height: 22px; }
 .page .fp-sec { display: flex; align-items: center; gap: 10px; margin: 26px 0 8px; font-size: 25px; color: var(--navy); }
 .fp-n { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; background: var(--navy); color: #fff; font-size: 19px; flex: none; }
 .fp-sub { margin: 12px 0 6px 4px; font-size: 19px; color: #1f5b42; }

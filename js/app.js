@@ -81,7 +81,7 @@ const seatName = s => s === 2 ? 'Vous' : nameOf(s);
 const chefOf = () => B.PERSOS.find(q => q.av.chef);
 const CHEF_BADGE = '<span class="chef-badge">★ Chef du bridge</span>';
 const CHEF_COURS = '<div class="chef-cours"><b>Le mardi :</b> cours intermédiaires et confirmés<br><b>Le jeudi :</b> cours débutants</div>';
-const FICHE_PAGES = { '01': 3, '02': 1, '03': 1, '04': 2, '05': 2, '06': 2, '07': 3, '08': 2, '09': 2, '10': 2, '11': 2, '12': 2, '13': 2, '14': 3, '15': 1, '16': 1, '17': 1 };
+const FICHE_PAGES = { '01': 3, '02': 1, '03': 1, '04': 2, '05': 2, '06': 2, '07': 3, '08': 2, '09': 2, '10': 2, '11': 1, '12': 2, '13': 1, '14': 1, '15': 1, '16': 1, '17': 1 };
 const ficheBtn = f => FICHE_PAGES[f] ? `<button class="btn fiche-link" data-fiche="${f}">${ICONS.book}<span>Ouvrir la fiche du cours n° ${f} : ${rich(B.FICHES[f])}</span></button>` : '';
 function callHTML(c, long) {
   if (c === 'P') return 'Passe';
@@ -232,17 +232,35 @@ function renderPersos() {
 /* ---------- Missions : des fins de donne à réussir, de plus en plus difficiles ---------- */
 const MP = () => G.missions = G.missions || { done: {}, fails: {} };
 const missionOf = g => g && g.mission ? B.mission.byId(g.mission) : null;
-const missionList = parcours => B.MISSIONS.filter(m => m.parcours === parcours);
+const missionList = parcours => B.MISSIONS.filter(m => m.parcours === parcours && !m.tech);
 const PARCOURS = { decl: 'Faire les plis', def: 'Empêcher les plis' };
+// la bibliothèque « Par technique » : toutes les missions, rangées par thème, avec des filtres
+const themeOf = k => B.MISSION_THEMES.find(t => t.k === k);
+const MF = () => G.missionsView = Object.assign({ tab: 'parcours', p: 'tout', th: 'tout', niv: 0, ct: 'tout' }, G.missionsView || {});
+const isSA = m => /SA$/.test(m.contrat);
+function techList() {
+  const f = MF(), order = B.MISSION_THEMES.map(t => t.k);
+  return B.MISSIONS.filter(m => (f.p === 'tout' || m.parcours === f.p) && (f.th === 'tout' || m.theme === f.th)
+      && (!f.niv || m.niveau === f.niv) && (f.ct === 'tout' || (f.ct === 'sa') === isSA(m)))
+    .sort((a, b) => order.indexOf(a.theme) - order.indexOf(b.theme) || a.niveau - b.niveau || B.MISSIONS.indexOf(a) - B.MISSIONS.indexOf(b));
+}
 const stars = n => `<span class="stars" aria-label="difficulté ${n} sur 5">${'★'.repeat(n)}<i>${'★'.repeat(5 - n)}</i></span>`;
 // une mission s'ouvre quand la précédente est réussie (ou ratée 3 fois : on n'est jamais bloquée)
 function missionOpen(m) {
+  if (m.tech || MF().tab === 'tech') return true;   // la bibliothèque par technique est toute ouverte
   const list = missionList(m.parcours), i = list.indexOf(m);
   if (i <= 0) return true;
   const prev = list[i - 1], mp = MP();
   return !!mp.done[prev.id] || (mp.fails[prev.id] || 0) >= 3;
 }
 function nextMission(m) {
+  if (m.tech || MF().tab === 'tech') {
+    // dans la bibliothèque : la suivante de la liste filtrée, sinon la suivante du même thème
+    const list = techList(), i = list.indexOf(m);
+    if (i >= 0) return list.slice(i + 1).find(x => !MP().done[x.id]) || list[i + 1] || null;
+    const same = B.MISSIONS.filter(x => x.theme === m.theme).sort((a, b) => a.niveau - b.niveau);
+    return same[same.indexOf(m) + 1] || null;
+  }
   const list = missionList(m.parcours);
   return list[list.indexOf(m) + 1] || missionList(m.parcours === 'decl' ? 'def' : 'decl').find(x => !MP().done[x.id] && missionOpen(x)) || null;
 }
@@ -266,7 +284,8 @@ function startMission(id) {
   snd('shuffle');
   render();
   const n = missionList(m.parcours).indexOf(m) + 1;
-  modal(`<div class="mi-k">${PARCOURS[m.parcours]} · mission ${n} ${stars(m.niveau)}</div><h2>${m.titre}</h2>
+  const where = n && MF().tab !== 'tech' ? `mission ${n}` : (themeOf(m.theme) || {}).t || '';
+  modal(`<div class="mi-k">${PARCOURS[m.parcours]} · ${where} ${stars(m.niveau)}</div><h2>${m.titre}</h2>
     <p>${rich(m.histoire)}</p><p class="mi-goal">${B.mission.objectif(m)}</p>
     <p class="mi-note">${m.parcours === 'decl' ? `Vous jouez vos cartes et celles du mort (${nameOf(0)}, en haut).` : `Vous jouez vos cartes ; ${nameOf(0)}, en haut, est votre partenaire.`}
     Les robots voient toutes les cartes et jouent parfaitement : seul le bon plan réussit. Le bouton « Conseil » donne un indice.</p>
@@ -285,7 +304,7 @@ function missionSlipCheck(seat, card) {
   } catch (e) { return false; }
 }
 // les fiches en PDF, prêtes à imprimer (un onglet s'ouvre ; sur l'iPad : Partager, puis Imprimer)
-const PDF_V = 4;   // à augmenter quand une fiche PDF change
+const PDF_V = 5;   // à augmenter quand une fiche PDF change
 const fichePdf = k => `fiches/pdf/fiche-${k}.pdf?v=${PDF_V}`;
 const pdfLink = (href, label, cls) => `<a class="btn pdf-btn ${cls || ''}" href="${href}" target="_blank" rel="noopener">${ICONS.print}<span>${label}</span></a>`;
 // les fiches dans l'ordre chronologique des enchères : l'ouverture, la réponse du partenaire, la 2e enchère de l'ouvreur, la 2e du partenaire…
@@ -303,17 +322,16 @@ const FICHE_PLAN = [
     { t: 'Après une ouverture à la couleur', f: ['05'] },
     { t: 'Après l\'ouverture 1 SA', f: ['14'] }] },
   { t: 'Le partenaire : la 2ème enchère', s: [
-    { t: 'Après l\'ouverture 1 SA', f: ['14:2', '11:1'] }] },
+    { t: 'Après l\'ouverture 1 SA', f: ['14:1', '11:1'] }] },
   { t: 'Les adversaires : l\'intervention', s: [
     { t: 'Intervenir sur l\'ouverture adverse', f: ['10', '17'] },
     { t: 'Répondre au contre d\'appel du partenaire', f: ['13'] }] },
   { t: 'Le jeu de la carte', s: [{ f: ['09'] }] },
 ];
-const FICHE_REF = { '14:2': 'Fiche 14, pages 2 et 3 : la 2ème enchère du répondant après 1 SA', '11:1': 'Fiche 11 : la suite du Stayman (2ème réponse du répondant)' };
+const FICHE_REF = { '14:1': 'Fiche 14 : la 2ème enchère du répondant après 1 SA (bas du tableau)', '11:1': 'Fiche 11 : la suite du Stayman (2ème réponse du répondant)' };
 const ficheRow = x => {
   const [k, pg] = x.split(':');
-  const orig = ORIG[k] && !pg ? `<button class="btn orig-btn" data-fiche="${k}" data-page="${FICHE_PAGES[k] + 1}">${ICONS.pic}<span>La feuille originale de Roger, en entier</span></button>` : '';
-  return `<div class="fiche-row"><button class="btn" data-fiche="${k}"${pg ? ` data-page="${pg}"` : ''}>${ICONS.book}<span>${FICHE_REF[x] ? rich(FICHE_REF[x]) : `Fiche ${k} : ${rich(B.FICHES[k])}`}</span></button>${pdfLink(fichePdf(k), 'PDF')}${orig}</div>`;
+  return `<div class="fiche-row"><button class="btn" data-fiche="${k}"${pg ? ` data-page="${pg}"` : ''}>${ICONS.book}<span>${FICHE_REF[x] ? rich(FICHE_REF[x]) : `Fiche ${k} : ${rich(B.FICHES[k])}`}</span></button>${pdfLink(fichePdf(k), 'PDF')}</div>`;
 };
 const ficheListHTML = () => `<div class="fiche-plan">${FICHE_PLAN.map((sec, i) => `<h2 class="fp-sec"><span class="fp-n">${i + 1}</span>${sec.t}</h2>
   ${sec.s.map((ss, j) => `${ss.t ? `<h3 class="fp-sub">${i + 1}.${j + 1} · ${ss.t}</h3>` : ''}<div class="fiche-list">${ss.f.map(ficheRow).join('')}</div>`).join('')}`).join('')}</div>`;
@@ -330,22 +348,45 @@ function renderFiches() {
   </div></div>`;
 }
 function renderMissions() {
-  const mp = MP();
+  const mp = MP(), f = MF();
   const done = B.MISSIONS.filter(m => mp.done[m.id]).length;
+  const status = m => mp.done[m.id] ? 'Réussie' : mp.fails[m.id] ? `À réussir · ${plural(mp.fails[m.id], 'essai')}` : 'À jouer';
   const row = (m, i) => {
     const open = missionOpen(m), ok = mp.done[m.id];
     return `<div class="mi-row ${open ? '' : 'locked'} ${ok ? 'ok' : ''}">
       <div class="mi-n">${ok ? '✓' : i + 1}</div>
-      <div class="mi-t"><b>${m.titre}</b>${stars(m.niveau)}<small>${ok ? 'Réussie' : open ? (mp.fails[m.id] ? `À réussir · ${plural(mp.fails[m.id], 'essai')}` : 'À jouer') : 'Réussissez d\'abord la mission précédente'}</small></div>
+      <div class="mi-t"><b>${m.titre}</b>${stars(m.niveau)}<small>${open ? status(m) : 'Réussissez d\'abord la mission précédente'}</small></div>
       ${open ? `<button class="btn ${ok ? '' : 'primary'}" data-act="mission:${m.id}">${ok ? 'Rejouer' : 'Jouer'}</button>` : '<span class="mi-lock">🔒</span>'}</div>`;
   };
   const block = k => `<h2>${PARCOURS[k]} <small>${k === 'decl' ? 'vous êtes déclarant : faites vos plis' : 'vous êtes en défense : faites chuter le contrat'}</small></h2>
     <div class="mi-list">${missionList(k).map(row).join('')}</div>`;
+  const nParc = B.MISSIONS.filter(m => !m.tech).length;
+  const tabs = `<div class="mi-tabs" role="tablist">
+    <button role="tab" class="${f.tab === 'parcours' ? 'on' : ''}" data-act="mf:tab:parcours"><b>Le parcours</b><small>${nParc} missions, de la plus facile à la plus difficile</small></button>
+    <button role="tab" class="${f.tab === 'tech' ? 'on' : ''}" data-act="mf:tab:tech"><b>Par technique</b><small>${B.MISSIONS.length} missions, rangées par thème</small></button></div>`;
+  let body;
+  if (f.tab === 'tech') {
+    const seg = (key, opts) => `<div class="seg mi-f">${opts.map(([v, l]) => `<button class="${String(f[key]) === String(v) ? 'on' : ''}" data-act="mf:${key}:${v}">${l}</button>`).join('')}</div>`;
+    const themes = B.MISSION_THEMES.filter(t => (f.p === 'tout' || t.p === f.p) && B.MISSIONS.some(m => m.theme === t.k));
+    if (f.th !== 'tout' && !themes.some(t => t.k === f.th)) f.th = 'tout';
+    const list = techList();
+    const groups = themes.filter(t => f.th === 'tout' || t.k === f.th).map(t => ({ t, ms: list.filter(m => m.theme === t.k) })).filter(x => x.ms.length);
+    body = `<div class="mi-filters">
+      <div class="mi-fl"><span>Vous êtes</span>${seg('p', [['tout', 'Les deux'], ['decl', 'Déclarant'], ['def', 'En défense']])}</div>
+      <div class="mi-fl"><span>Technique</span>${seg('th', [['tout', 'Toutes']].concat(themes.map(t => [t.k, t.t])))}</div>
+      <div class="mi-fl"><span>Difficulté</span>${seg('niv', [[0, 'Toutes']].concat([1, 2, 3, 4, 5].map(n => [n, `<span class="st" aria-label="difficulté ${n}">${'★'.repeat(n)}</span>`])))}</div>
+      <div class="mi-fl"><span>Contrat</span>${seg('ct', [['tout', 'Tous'], ['sa', 'Sans-Atout'], ['atout', 'À l\'atout']])}</div>
+    </div>
+    <p class="mi-count"><b>${plural(list.length, 'mission')}</b>${list.length ? ` · ${list.filter(m => mp.done[m.id]).length} réussie${list.filter(m => mp.done[m.id]).length > 1 ? 's' : ''}` : ''}</p>
+    ${groups.length ? groups.map(({ t, ms }) => `<h2 class="mi-th">${t.t} <small>${PARCOURS[t.p]} · ${t.d}</small></h2>
+      <div class="mi-list">${ms.map(row).join('')}</div>`).join('')
+      : `<div class="mi-empty"><p>Aucune mission ne correspond à ces choix.</p><button class="btn primary" data-act="mf:reset:1">Tout afficher</button></div>`}`;
+  } else body = block('decl') + block('def');
   $app.innerHTML = `<div class="page"><div class="inner">
     <button class="btn back" data-act="go:home">← Accueil</button>
     <h1>Les missions</h1>
-    <p>Chaque mission est une fin de donne avec un but : faire assez de plis, ou empêcher l'adversaire de faire les siens. Chaque mission reprend une leçon de la fiche « Jeu de la carte », et elles deviennent de plus en plus difficiles. <b>${done} sur ${B.MISSIONS.length}</b> réussies.</p>
-    ${block('decl')}${block('def')}
+    <p>Chaque mission est une fin de donne avec un but : faire assez de plis, ou empêcher l'adversaire de faire les siens. Les robots jouent parfaitement : seule la bonne technique réussit. <b>${done} sur ${B.MISSIONS.length}</b> réussies.</p>
+    ${tabs}${body}
   </div></div>`;
 }
 function missionEndHTML() {
@@ -589,7 +630,7 @@ function renderApprendre() {
     <h2>Donnes commentées <small>jouez la donne, puis lisez l'explication de chaque enchère et le plan de jeu</small></h2>
     <div class="ld-list"><button class="ld-row" data-act="go:comm"><span class="ld-txt"><b>${comm.n} donnes</b><small>De l'initiation au niveau confirmé</small></span>${chip(comm.ok, comm.n)}<i>›</i></button></div>
     <h2>Aussi</h2>
-    <div class="ld-list"><button class="ld-row" data-act="go:missions"><span class="ld-txt"><b>★ Les missions</b><small>Faire les plis, ou les empêcher</small></span><i>›</i></button>
+    <div class="ld-list"><button class="ld-row" data-act="go:missions"><span class="ld-txt"><b>★ Les missions</b><small>Faire les plis, ou les empêcher · rangées par technique</small></span><i>›</i></button>
       <button class="ld-row" data-act="go:fiches"><span class="ld-txt"><b>Les fiches du cours</b><small>Toutes les fiches, en gros caractères</small></span><i>›</i></button></div>
   </div></div>`;
 }
@@ -1335,7 +1376,7 @@ function panelHTML(status) {
   const m = missionOf(g);
   let html = `<div class="scroll">
     <div class="topline"><span class="boardno ${g.learn ? 'small' : ''}">${m ? 'Mission' : boardLabel(g)}</span><button class="menu-btn" data-act="menu"><span class="bars"></span>Menu</button><button class="btn sheet-close" data-act="details">Fermer ✕</button></div>
-    ${m ? `<div class="mission-box"><div class="mi-k">${PARCOURS[m.parcours]} ${stars(m.niveau)}</div><div class="mi-title">${m.titre}</div><p>${rich(m.histoire)}</p></div>`
+    ${m ? `<div class="mission-box"><div class="mi-k">${PARCOURS[m.parcours]} · ${(themeOf(m.theme) || {}).t || ''} ${stars(m.niveau)}</div><div class="mi-title">${m.titre}</div><p>${rich(m.histoire)}</p></div>`
       : g.mini ? `<div class="mission-box"><div class="mi-k">Mini-bridge</div><div class="mi-title">${LC.theme(g.learn.group).titre}</div><p>${LC.theme(g.learn.group).resume}</p></div>`
       : `<div class="info">Donneur : <b>${seatName(g.dealer)}</b><br>
       Nord-Sud <span class="vul ${vulNS ? 'v' : 'nv'}">${vulNS ? 'vulnérables' : 'non vulnérables'}</span><br>
@@ -2479,6 +2520,13 @@ $app.addEventListener('click', e => {
   else if (k === 'sel') { G.game.selCall = +v; save(); render(); }
   else if (k === 'details') { panelOpen = !panelOpen; render(); }
   else if (k === 'mission') startMission(v);
+  else if (k === 'mf') {
+    const f = MF();
+    if (v === 'reset') Object.assign(f, { p: 'tout', th: 'tout', niv: 0, ct: 'tout' });
+    else f[v] = v === 'niv' ? +w : w;
+    if (v === 'p' && f.th !== 'tout' && (themeOf(f.th) || {}).p !== w && w !== 'tout') f.th = 'tout';
+    save(); render();
+  }
   else if (k === 'lm') { learnView.theme = v; screen = 'lm'; render(); }
   else if (k === 'lecon') { learnView.theme = v; learnView.lecon = w; screen = 'lecon'; render(); }
   else if (k === 'lecon-ok') { LP().lu[learnView.theme + ':' + learnView.lecon] = true; save(); screen = 'lm'; render(); }
@@ -2506,10 +2554,7 @@ $app.addEventListener('click', e => {
   }
 });
 // une fiche du cours, en grand, par-dessus le jeu (images en cache : marche sans internet)
-const IMG_V = { '05': 5, '11': 5, '13': 5, '14': 6 };   // version des images d'une fiche refaite (cache de l'iPad)
-// la photo de la feuille originale de Roger, montrée en entier à la fin de la fiche
-const ORIG = { '11': 1, '13': 1, '14': 1 };
-const origImg = id => `fiches/f${id}-orig.jpg?v=${ORIG[id]}`;
+const IMG_V = { '05': 5, '11': 6, '13': 6, '14': 7 };   // version des images d'une fiche refaite (cache de l'iPad)
 function openFiche(id, think, page) {
   const n = FICHE_PAGES[id];
   if (!n) return;
@@ -2522,8 +2567,7 @@ function openFiche(id, think, page) {
     ${inGame ? '' : pdfLink(fichePdf(id), 'PDF')}<button class="btn" data-z="-1">A−</button><button class="btn" data-z="1">A+</button><button class="btn primary" data-close>Fermer</button></div>
     ${think ? `<div class="fiche-think"><div class="ft-txt"><b>Réfléchissez avec la fiche.</b> Votre main : ${[0, 1, 2, 3].map(s => `<span class="ft-s">${su(s)} ${B.ranksIn(think.hand, s).map(x => B.RANK_TXT[x]).join(' ') || '—'}</span>`).join('')}<span class="ft-p"><b>${B.hcp(think.hand)} points H</b>, ${B.HL(think.hand)} points HL</span></div>
       <button class="btn gold" data-answer>Voir la réponse</button></div>` : ''}
-    <div class="pages">${Array.from({ length: n }, (_, i) => `<img src="fiches/f${id}-${i + 1}.jpg?v=${IMG_V[id] || 4}" alt="Fiche ${id}, page ${i + 1}">`).join('')}
-      ${ORIG[id] ? `<div class="orig-ttl">La feuille originale de Roger, en entier</div><img class="orig" src="${origImg(id)}" alt="Fiche ${id}, feuille originale">` : ''}</div>
+    <div class="pages">${Array.from({ length: n }, (_, i) => `<img src="fiches/f${id}-${i + 1}.jpg?v=${IMG_V[id] || 4}" alt="Fiche ${id}, page ${i + 1}">`).join('')}</div>
     <button class="btn primary fv-close" data-close>✕ Fermer la fiche${inGame ? ' et revenir au jeu' : ''}</button>`;
   document.body.appendChild(v);
   snd('select');
