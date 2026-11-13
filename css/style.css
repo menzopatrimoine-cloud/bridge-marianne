@@ -615,7 +615,8 @@ body.tel .rv-ctrl .btn { min-height: 46px; font-size: 15px; padding: 4px 6px; bo
 .seg.mi-f button { min-width: 0; font-size: 18px; padding: 11px 14px; }
 .seg.mi-f .st { color: #c8901a; letter-spacing: 1px; }
 .seg.mi-f .on .st { color: #ffd77a; }
-.mi-count { font-size: 18px; margin: 6px 0 2px; }
+.mi-count { font-size: 18px; margin: 6px 0 2px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.mi-count .mi-reset { min-height: 44px; font-size: 17px; padding: 4px 14px; }
 .mi-th { margin-top: 18px; }
 .mi-th small { display: block; font-size: 16px; font-weight: 600; color: var(--muted); margin-top: 2px; }
 .mi-empty { background: #fff; border: 2px dashed var(--line); border-radius: 16px; padding: 14px; text-align: center; }

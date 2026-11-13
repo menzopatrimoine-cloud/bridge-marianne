@@ -377,7 +377,8 @@ function renderMissions() {
       <div class="mi-fl"><span>Difficulté</span>${seg('niv', [[0, 'Toutes']].concat([1, 2, 3, 4, 5].map(n => [n, `<span class="st" aria-label="difficulté ${n}">${'★'.repeat(n)}</span>`])))}</div>
       <div class="mi-fl"><span>Contrat</span>${seg('ct', [['tout', 'Tous'], ['sa', 'Sans-Atout'], ['atout', 'À l\'atout']])}</div>
     </div>
-    <p class="mi-count"><b>${plural(list.length, 'mission')}</b>${list.length ? ` · ${list.filter(m => mp.done[m.id]).length} réussie${list.filter(m => mp.done[m.id]).length > 1 ? 's' : ''}` : ''}</p>
+    <p class="mi-count"><b>${plural(list.length, 'mission')}</b>${list.length ? ` · ${list.filter(m => mp.done[m.id]).length} réussie${list.filter(m => mp.done[m.id]).length > 1 ? 's' : ''}` : ''}
+      ${f.p !== 'tout' || f.th !== 'tout' || f.niv || f.ct !== 'tout' ? '<button class="btn small mi-reset" data-act="mf:reset:1">✕ Effacer les choix</button>' : ''}</p>
     ${groups.length ? groups.map(({ t, ms }) => `<h2 class="mi-th">${t.t} <small>${PARCOURS[t.p]} · ${t.d}</small></h2>
       <div class="mi-list">${ms.map(row).join('')}</div>`).join('')
       : `<div class="mi-empty"><p>Aucune mission ne correspond à ces choix.</p><button class="btn primary" data-act="mf:reset:1">Tout afficher</button></div>`}`;
