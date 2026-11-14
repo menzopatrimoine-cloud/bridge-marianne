@@ -323,7 +323,74 @@ function missionSlipCheck(seat, card) {
 // les fiches en PDF, prêtes à imprimer (un onglet s'ouvre ; sur l'iPad : Partager, puis Imprimer)
 const PDF_V = 5;   // à augmenter quand une fiche PDF change
 const fichePdf = k => `fiches/pdf/fiche-${k}.pdf?v=${PDF_V}`;
-const pdfLink = (href, label, cls) => `<a class="btn pdf-btn ${cls || ''}" href="${href}" target="_blank" rel="noopener">${ICONS.print}<span>${label}</span></a>`;
+const pdfLink = (href, label, cls) => `<button class="btn pdf-btn ${cls || ''}" data-pdf="${href}">${ICONS.print}<span>${label}</span></button>`;
+// Imprimer une fiche sans quitter l'application. Sur l'iPad (et l'iPhone), ouvrir le PDF directement, dans l'appli installée
+// sur l'écran d'accueil, le montrait sans bouton Retour ni Imprimer : on reste bloqué. On prépare donc le fichier, puis le menu
+// Partager de l'iPad propose « Imprimer » (ou « Enregistrer dans Fichiers ») ; ailleurs, le PDF s'ouvre dans un nouvel onglet.
+const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+function printPdf(href) {
+  if (!isIOS()) { window.open(href, '_blank', 'noopener'); return; }
+  if (document.querySelector('.pdf-ov')) return;   // déjà ouverte (double toucher)
+  const num = (href.match(/fiche-(\d+)/) || [])[1];
+  const what = num ? `la fiche n° ${num}` : 'tout le cours';
+  const name = num ? `Fiche ${num} du cours de bridge.pdf` : 'Cours de bridge complet.pdf';
+  const v = document.createElement('div');
+  v.className = 'overlay pdf-ov';
+  v.innerHTML = `<div class="sheet"><h2>Imprimer ${what}</h2>
+    <p>Touchez « Imprimer » : le menu <b>Partager</b> s'ouvre. Choisissez <b>Imprimer</b> (ou « Enregistrer dans Fichiers »).</p>
+    <p class="pdf-note">Vous restez dans l'application : une fois l'impression lancée, vous revenez ici.</p>
+    <div class="btns"><button class="btn primary" data-p="go" disabled>${ICONS.print}<span>Préparation…</span></button><button class="btn" data-p="close">Fermer</button></div></div>`;
+  document.body.appendChild(v);
+  const t0 = Date.now(), go = v.querySelector('[data-p="go"]'), label = go.querySelector('span'), note = v.querySelector('.pdf-note');
+  let file = null;
+  // le fichier est préparé tout de suite (le partage doit ensuite partir directement du toucher, sinon l'iPad le refuse)
+  const ctl = window.AbortController ? new AbortController() : null;
+  const timer = setTimeout(() => ctl && ctl.abort(), 15000);
+  fetch(href, ctl ? { signal: ctl.signal } : {})
+    .then(r => { if (!r.ok) throw new Error('pdf'); return r.blob(); })
+    .then(b => (b.slice(0, 5).text ? b.slice(0, 5).text() : Promise.resolve('%PDF-')).then(head => {
+      if (head !== '%PDF-') throw new Error('pas un PDF');   // jamais la page d'accueil à la place du PDF
+      file = new File([b], name, { type: 'application/pdf' });
+    }))
+    .catch(() => { file = null; note.textContent = 'Le PDF n\'a pas pu être préparé : on imprimera les pages de la fiche à la place.'; })
+    .then(() => { clearTimeout(timer); go.disabled = false; label.textContent = 'Imprimer'; });
+  const close = () => v.remove();
+  v.addEventListener('click', e => {
+    const b = e.target.closest('[data-p]');
+    // un toucher sur le fond ferme la fenêtre, sauf juste après son ouverture (double toucher sur « PDF »)
+    if (!b) { if (e.target === v && Date.now() - t0 > 700) close(); return; }
+    if (b.dataset.p === 'close') { close(); return; }
+    if (go.disabled) return;
+    go.disabled = true;
+    if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file], title: name }).then(close, err => {
+        go.disabled = false;
+        const n = err && err.name;
+        if (n === 'AbortError' || n === 'InvalidStateError') return;   // menu fermé sans choisir, ou déjà ouvert
+        close(); printImages(num);
+      });
+    } else { close(); printImages(num); }
+  });
+}
+// solution de secours (ancien iPad, ou PDF indisponible) : on imprime les images des fiches avec la fenêtre d'impression
+function printImages(num) {
+  const ids = num ? [num] : FICHE_PLAN.flatMap(sec => sec.s.flatMap(ss => ss.f.map(x => x.split(':')[0]))).filter((k, i, a) => a.indexOf(k) === i);
+  let area = document.getElementById('print-area');
+  if (area) area.remove();
+  area = document.createElement('div');
+  area.id = 'print-area';
+  area.innerHTML = ids.map(id => Array.from({ length: FICHE_PAGES[id] || 0 }, (_, i) => `<img src="fiches/f${id}-${i + 1}.jpg?v=${IMG_V[id] || 4}" alt="">`).join('')).join('');
+  document.body.appendChild(area);
+  document.body.classList.add('print-fiche');
+  const done = () => { area.remove(); document.body.classList.remove('print-fiche'); window.removeEventListener('afterprint', done); };
+  window.addEventListener('afterprint', done);
+  setTimeout(done, 120000);   // au cas où l'appareil ne signale pas la fin de l'impression
+  const imgs = [...area.querySelectorAll('img')];
+  Promise.all(imgs.map(i => i.complete ? 0 : new Promise(r => { i.onload = i.onerror = r; }))).then(() => {
+    try { window.print(); } catch (e) { done(); toast('Impression impossible sur cet appareil.'); }
+  });
+}
+document.addEventListener('click', e => { const b = e.target.closest('[data-pdf]'); if (b) { e.preventDefault(); printPdf(b.dataset.pdf); } });
 // les fiches dans l'ordre chronologique des enchères : l'ouverture, la réponse du partenaire, la 2e enchère de l'ouvreur, la 2e du partenaire…
 // « 14:2 » = la fiche 14 ouverte à sa page 2 (une même fiche peut servir à deux étapes)
 const FICHE_PLAN = [
@@ -360,7 +427,7 @@ function renderFiches() {
     <div class="chef-box">${B.avatarSVG(chefOf())}<div><div class="pc-n"><b>Roger</b>${CHEF_BADGE}</div><p>Les fiches du cours ont été créées par Roger, le chef du bridge de l'Hippocampe.</p></div></div>
     <p>Toutes les fiches d'apprentissage, en gros caractères, <b>dans l'ordre des enchères</b> : l'ouverture, la réponse du partenaire, la 2ème enchère de l'ouvreur, puis celle du partenaire. Touchez une fiche pour l'ouvrir en grand.</p>
     <div class="pdf-all">${pdfLink(`fiches/pdf/cours-complet.pdf?v=${PDF_V}`, 'Imprimer tout le cours (PDF)', 'gold')}</div>
-    <p class="pdf-how">Pour imprimer une seule fiche, touchez « PDF » à côté d'elle. Sur l'iPad, touchez ensuite le bouton Partager, puis « Imprimer ».</p>
+    <p class="pdf-how">Pour imprimer une seule fiche, touchez « PDF » à côté d'elle, puis « Imprimer » : vous restez dans l'application.</p>
     ${ficheListHTML()}
   </div></div>`;
 }
@@ -806,6 +873,7 @@ function step() {
       thinking = -1;
       if (robotActed) { robotActed = false; snd('turn'); }
       render();
+      setTimeout(() => { if (tok === runToken) claimOffer(); }, 450);
       return;
     }
     thinking = seat;
@@ -1085,6 +1153,78 @@ function claim() {
     } else toast('Pas encore : les adversaires peuvent encore faire un pli. Continuez à jouer.', 3600);
   });
 }
+/* ---------- Fin de donne jouée d'avance : proposer de la finir tout de suite ---------- */
+// Dès que la fin se joue « toute seule » (encaisser ses cartes maîtresses suffit pour faire le meilleur résultat possible,
+// quelle que soit la défense), on propose de finir la donne : les dernières cartes sont jouées automatiquement.
+function claimOffer() {
+  const g = G.game, p = g && g.play;
+  if (!p || g.phase !== 'play' || g.online || g.expert || p.done || holdTrick || g.claimAsked || screen !== 'game') return;
+  if (!userControls(p.turn) || document.querySelector('.overlay, .fiche-view')) return;
+  const left = p.hands[p.turn].length;   // plis qui restent, celui en cours compris
+  // en fin de donne seulement : les 6 derniers plis (les 3 derniers en mission, pour ne pas gâcher la technique à trouver)
+  if (left < 2 || left > (g.mission ? 3 : 6)) return;
+  let r = null;
+  try { r = B.dd.claimable(p.hands, p.trump, p.trick, p.turn, { maxNodes: 2e5 }); } catch (e) { return; }
+  if (!r) return;
+  const m = missionOf(g);
+  if (m) {
+    // en mission, seulement si plus aucune carte (ni de vous, ni de personne) ne peut changer l'issue : la technique reste à vous
+    let rg;
+    try { rg = B.dd.range(p.hands, p.trump, p.trick, p.turn, { maxNodes: 2e5 }); } catch (e) { return; }
+    const need = B.mission.goalOf(m) - missionTricks(g);
+    if ((rg[0] >= need) !== (rg[1] >= need)) return;
+  }
+  g.claimAsked = true;
+  save();
+  const ns = p.won[0] + r.ns, ew = p.won[1] + left - r.ns;
+  let issue;
+  if (m) issue = `la mission sera <b>${B.mission.won(m, Object.assign({}, p, { won: [ns, ew] })) ? 'réussie' : 'ratée'}</b>`;
+  else if (g.contract) {
+    const ct = g.contract, decl = B.sideOf(ct.declarer) === 0 ? ns : ew, diff = decl - (ct.level + 6);
+    const nm = nameOf(ct.declarer), whose = ct.declarer === 2 ? 'votre contrat' : `le contrat ${/^[aeiouyéèêàâîôûhAEIOUYÉÈÊÀÂÎÔÛH]/.test(nm) ? 'd\'' : 'de '}${nm}`;
+    issue = `${whose} ${diff >= 0 ? 'sera <b>réussi' + (diff ? ' avec ' + diff + ' de mieux' : '') + '</b>' : '<b>chutera de ' + (-diff) + '</b>'}`;
+  }
+  const nsLeft = r.ns, ewLeft = left - r.ns;
+  const who = nsLeft === left ? `Votre camp fera <b>les ${left} plis</b> qui restent`
+    : nsLeft === 0 ? `Les adversaires feront <b>les ${left} plis</b> qui restent`
+    : `Votre camp fera encore <b>${plural(nsLeft, 'pli')}</b> et les adversaires <b>${plural(ewLeft, 'pli')}</b>`;
+  modal(`<h2>La fin de la donne est jouée d'avance</h2>
+    <p>${who} : ${issue || 'le résultat ne peut plus changer'}.</p>
+    <p>Voulez-vous finir la donne tout de suite ? Les dernières cartes seront jouées automatiquement.</p>
+    <div class="btns"><button class="btn primary" data-m="yes">Finir la donne</button><button class="btn" data-m="no">Continuer à jouer</button></div>`, v => {
+    if (v === 'yes') autoFinish();
+  }, 'noclose');
+}
+// joue toutes les cartes qui restent : Nord-Sud encaisse ses cartes maîtresses, la défense joue au mieux (calcul exact)
+function autoFinish() {
+  const g = G.game, p = g && g.play;
+  if (!p || p.done) return;
+  cancelTimers();
+  pushUndo();
+  const before = p.tricks.length;
+  p.autoFrom = p.tricks.length * 4 + p.trick.length;   // les cartes jouées automatiquement ne sont pas jugées dans l'analyse
+  let guard = 0;
+  while (!p.done && guard++ < 60) {
+    const seat = p.turn;
+    let card;
+    if (B.sideOf(seat) === 0) {
+      const M = p.hands.map(h => { const m = [0, 0, 0, 0]; for (const c of h) m[B.suitOf(c)] |= 1 << B.rankOf(c); return m; });
+      card = B.dd.simpleCard(M, p.trump, seat, p.trick);
+    } else {
+      // la défense : une des meilleures cartes (calcul exact), la plus petite
+      const ev = B.dd.makeSolver(p.hands, p.trump, { maxNodes: 2e6 }).evalMoves(p.trick, seat);
+      const lo = Math.min(...ev.map(x => x.ns));
+      card = ev.filter(x => x.ns === lo).map(x => x.card).sort((a, b) => B.rankOf(a) - B.rankOf(b))[0];
+    }
+    if (!B.legalCards(p, seat).includes(card)) card = B.legalCards(p, seat)[0];
+    B.playCard(p, seat, card);
+  }
+  p.auto = p.tricks.length - before;
+  holdTrick = false; thinking = -1; selected = null; hintCard = null; lastPlayed = null; fly = null;
+  save();
+  finishPlay();
+  setTimeout(() => toast(`Les ${p.auto} derniers plis ont été joués automatiquement.`, 3200), 400);
+}
 function menu() {
   if (G.game && G.game.online) { onlineMenu(); return; }
   const inGame = screen === 'game' && G.game;
@@ -1277,10 +1417,20 @@ function renderGame() {
   // Nord
   let north;
   const northVisible = phase === 'end' || (phase === 'play' && (g.online ? dummy === 0 && dummyShown : B.sideOf(decl) === 0 || (dummy === 0 && dummyShown))) || (phase === 'mini' && g.mini.step >= 2 && g.mini.side === 0);
-  if (northVisible) north = dummyHTML(phase === 'end' ? [] : hands[0], 0, 'cols', cardCls);
+  // téléphone en portrait, pendant le jeu : la main visible d'en face (Nord, ou le mort Est/Ouest) a sa propre zone,
+  // sur toute la largeur sous les noms du haut, pour des cartes bien plus grandes (zone-dm, placée par layout())
+  const telPlay = telPortrait() && phase === 'play';
+  let dm = '';
+  if (northVisible && telPlay) { dm = dummyHTML(hands[0], 0, 'cols', cardCls); north = ''; }
+  else if (northVisible) north = dummyHTML(phase === 'end' ? [] : hands[0], 0, 'cols', cardCls);
   else north = backsHTML(hands[0].length);
   // Est / Ouest
   const sideZone = s => {
+    if (phase === 'play' && s === dummy && dummyShown && telPlay) {
+      if (!hands[s].length) return '';
+      dm = `<div class="dm-lbl">Le mort : <b>${nameOf(s)}</b>${SEATN[s] !== nameOf(s) ? ` (${SEATN[s]})` : ''}</div>` + dummyHTML(hands[s], s, 'cols', cardCls);
+      return '';
+    }
     if (phase === 'play' && s === dummy && dummyShown) return dummyHTML(hands[s], s, 'rows', cardCls);
     if (phase === 'end') return '';
     return backsHTML(hands[s].length);
@@ -1316,13 +1466,15 @@ function renderGame() {
   const endHTML = phase === 'end' ? endScreenHTML() : '';
   const sheet = panelOpen && tel(), oldScroll = sheet && document.querySelector('.panel .scroll');
   const keep = oldScroll ? oldScroll.scrollTop : 0;
+  const zw = sideZone(3), ze = sideZone(1);
   $app.innerHTML = `<div class="game">
-    <div class="table" id="table">
+    <div class="table ${telPortrait() && (phase === 'play' || phase === 'bidding') ? 'tp' : ''}" id="table">
       <div class="zone zone-n">${tag(0)}${bubble(0)}${north}</div>
-      <div class="zone zone-w">${tag(3)}${bubble(3)}${sideZone(3)}</div>
-      <div class="zone zone-e">${tag(1)}${bubble(1)}${sideZone(1)}</div>
+      <div class="zone zone-w">${tag(3)}${bubble(3)}${zw}</div>
+      <div class="zone zone-e">${tag(1)}${bubble(1)}${ze}</div>
+      ${dm ? `<div class="zone zone-dm">${dm}</div>` : ''}
       <div class="zone zone-s">${tag(2)}${bubble(2)}${south}</div>
-      <div class="center">${center}</div>
+      <div class="center ${phase === 'play' ? 'c-play' : ''}">${center}</div>
       ${tel() ? '' : status}
       ${endHTML}
     </div>
@@ -1358,7 +1510,7 @@ function dummyHTML(hand, seat, mode, cardCls) {
   const order = [0, 1, 3, 2];
   const bySuit = order.map(s => B.ranksIn(hand, s).map(r => s * 13 + r));
   if (mode === 'cols') {
-    return `<div class="dummy" data-seat="${seat}">${bySuit.map(cs => `<div class="col">${cs.length ? cs.map(c => cardHTML(c, 'small ' + cardCls(seat, c))).join('') : '<div class="empty"></div>'}</div>`).join('')}</div>`;
+    return `<div class="dummy" data-seat="${seat}">${bySuit.map(cs => `<div class="col${cs.length ? '' : ' void'}">${cs.length ? cs.map(c => cardHTML(c, 'small ' + cardCls(seat, c))).join('') : '<div class="empty"></div>'}</div>`).join('')}</div>`;
   }
   return `<div class="dummy rows" data-seat="${seat}">${bySuit.filter(cs => cs.length).map(cs => `<div class="row">${cs.map(c => cardHTML(c, 'small ' + cardCls(seat, c))).join('')}</div>`).join('')}</div>`;
 }
@@ -1552,9 +1704,10 @@ function bumpCls(i) {
 }
 function flyOrigin(seat, card) {
   const z = '.zone-' + 'nesw'[seat];
-  const el = document.querySelector(`${z} .card[data-c="${card}"]`);
+  const el = document.querySelector(`${z} .card[data-c="${card}"]`) || document.querySelector(`.zone-dm .dummy[data-seat="${seat}"] .card[data-c="${card}"]`);
   if (el) return { card, rect: el.getBoundingClientRect(), face: true };
-  const b = document.querySelector(`${z} .backs`) || document.querySelector(`${z} .tag`);
+  // le paquet du robot, ou son nom si le paquet est caché (téléphone en portrait)
+  const b = [...document.querySelectorAll(`${z} .backs, ${z} .tag`)].find(e => e.getBoundingClientRect().width > 0);
   return b ? { card, rect: b.getBoundingClientRect(), face: false } : null;
 }
 const center = r => [r.left + r.width / 2, r.top + r.height / 2];
@@ -1663,6 +1816,8 @@ function layout(shrink) {
   const isTel = tel(), port = telPortrait();
   shrink = shrink || 1;
   const nz = t.querySelector('.zone-n'), sz = t.querySelector('.zone-s'), wz = t.querySelector('.zone-w'), ez = t.querySelector('.zone-e');
+  // petit téléphone en portrait, pendant le jeu : Ouest et Est sans visage ni compteurs, pour laisser la place aux cartes du mort
+  if (port) t.classList.toggle('tp-small', !!(g && g.phase === 'play' && H < 600));
   const f = (G.settings.cardSize === 'normal' ? 0.85 : 1) * shrink;
   const n = g && g.play && g.phase === 'play' ? g.play.hands[2].length : 13;
   // main de Sud sur deux rangées (téléphone en portrait) : la plus longue rangée décide de la taille des cartes
@@ -1722,6 +1877,53 @@ function layout(shrink) {
   st.setProperty('--cwT', cwT + 'px');
   st.setProperty('--cy', ((top + bottom) / 2) + 'px');
   let short = g && g.phase === 'play' && bottom - top - 14 < 46 * 1.42 * 2.1;
+  // téléphone en portrait : le mort sur toute la largeur sous les noms ; ses cartes et celles du pli se partagent la place jusqu'à la main de Sud
+  const dmz = port && t.querySelector('.zone-dm');
+  st.removeProperty('--tk');
+  if (dmz && dmz.querySelector('.dummy')) {
+    const dmd = dmz.querySelector('.dummy'), lbl = dmz.querySelector('.dm-lbl');
+    const seat = dmd ? +dmd.dataset.seat : 0, h = g && g.play ? g.play.hands[seat] : [];
+    const lens = [0, 1, 2, 3].map(s => h.filter(c => B.suitOf(c) === s).length);
+    const len = Math.max(1, ...lens), nr = Math.max(1, lens.filter(Boolean).length);
+    const dmTop = top + 6, lblH = lbl ? lbl.offsetHeight + 3 : 0;
+    const avail = bottom - dmTop - lblH - 8, wide = W - 12, colW = wide / 4;
+    // pli compact : la carte de Sud recouvre le bas de celle de Nord (sa valeur, en haut, reste visible)
+    const TK = 1.75;
+    st.setProperty('--tk', TK);
+    // deux façons de montrer le mort : en colonnes (une par couleur) ou en rangées (une par couleur, sur toute la largeur) ;
+    // on garde celle qui donne les plus grandes cartes, avec de quoi lire chaque valeur (bande d'au moins 26 px)
+    const best = room => {
+      const cols = len === 1 ? Math.min(78, colW * 0.84, room / 1.42)
+        : Math.max(Math.min(78, colW * 0.84, room / (1.42 + 0.42 * (len - 1))) >= 62 ? Math.min(78, colW * 0.84, room / (1.42 + 0.42 * (len - 1))) : 0,
+          Math.min(62, colW * 0.84, (room - 26 * (len - 1)) / 1.42));
+      const rows = Math.min(78, room / (1.42 + 0.72 * (nr - 1)), wide / (1 + 0.45 * (len - 1)));
+      return rows > cols * 1.15 ? { cS: rows, mode: 'rows' } : { cS: cols, mode: 'cols' };   // les colonnes, plus habituelles, sauf si les rangées sont nettement plus grandes
+    };
+    // le pli le plus grand qui laisse au mort des cartes d'au moins 62 px ; sinon, priorité au mort
+    let cT = Math.max(38, Math.min(78, cw * 0.8)), pick = null;
+    for (; cT >= 38; cT -= 2) { pick = best(avail - cT * 1.42 * TK - 10); if (pick.cS >= 62) break; }
+    if (cT < 38) { cT = 38; pick = best(avail - cT * 1.42 * TK - 10); }
+    const room = avail - cT * 1.42 * TK - 10;
+    const cS = Math.max(36, pick.cS);
+    let dmH;
+    dmd.classList.toggle('as-rows', pick.mode === 'rows');
+    if (pick.mode === 'rows') {
+      const rs = nr > 1 ? Math.min(cS * 0.85, Math.max(cS * 0.72, (room - cS * 1.42) / (nr - 1))) : 0;
+      const hs = len > 1 ? Math.min(cS * 0.95, Math.max(cS * 0.45, (wide - cS) / (len - 1))) : 0;
+      st.setProperty('--rstep', rs + 'px'); st.setProperty('--hstep', hs + 'px');
+      dmH = cS * 1.42 + (nr - 1) * rs;
+    } else {
+      const vs = len > 1 ? Math.min(cS * 1.42 * 0.5, (room - cS * 1.42) / (len - 1)) : 0;
+      st.setProperty('--vstep', Math.max(22, vs) + 'px');
+      dmH = cS * 1.42 + (len - 1) * Math.max(22, vs);
+    }
+    st.setProperty('--cwS', cS + 'px'); st.setProperty('--dmTop', dmTop + 'px');
+    st.setProperty('--cwT', cT + 'px');
+    st.setProperty('--cy', ((dmTop + lblH + dmH + bottom) / 2) + 'px');
+    short = pick.cS < 38;
+    // si le mort reste bien plus petit que la main de Sud, on réduit un peu la main de Sud pour lui laisser la place
+    if (isTel && pick.cS < Math.min(60, cw * 0.88) && shrink > 0.56) return layout(shrink - 0.06);
+  }
   // boîte d'enchères : toute la largeur libre entre Ouest et Est, et jamais par-dessus les cartes de Sud
   const bb = t.querySelector('.bidbox');
   if (bb) {
@@ -2577,12 +2779,12 @@ function openFiche(id, think, page) {
   const n = FICHE_PAGES[id];
   if (!n) return;
   let zoom = 1;
-  // pendant une partie : pas de PDF (il s'ouvrirait dans un autre onglet) et un grand bouton pour revenir au jeu
+  // pendant une partie : un grand bouton pour revenir au jeu (le PDF s'imprime sans quitter l'application)
   const inGame = screen === 'game';
   const v = document.createElement('div');
   v.className = 'fiche-view';
   v.innerHTML = `<div class="bar"><div class="ttl">Fiche du cours n° ${id}<small>${rich(B.FICHES[id])}</small></div>
-    ${inGame ? '' : pdfLink(fichePdf(id), 'PDF')}<button class="btn" data-z="-1">A−</button><button class="btn" data-z="1">A+</button><button class="btn primary" data-close>Fermer</button></div>
+    ${pdfLink(fichePdf(id), 'PDF')}<button class="btn" data-z="-1">A−</button><button class="btn" data-z="1">A+</button><button class="btn primary" data-close>Fermer</button></div>
     ${think ? `<div class="fiche-think"><div class="ft-txt"><b>Réfléchissez avec la fiche.</b> Votre main : ${[0, 1, 2, 3].map(s => `<span class="ft-s">${su(s)} ${B.ranksIn(think.hand, s).map(x => B.RANK_TXT[x]).join(' ') || '—'}</span>`).join('')}<span class="ft-p"><b>${B.hcp(think.hand)} points H</b>, ${B.HL(think.hand)} points HL</span></div>
       <button class="btn gold" data-answer>Voir la réponse</button></div>` : ''}
     <div class="pages">${Array.from({ length: n }, (_, i) => `<img src="fiches/f${id}-${i + 1}.jpg?v=${IMG_V[id] || 4}" alt="Fiche ${id}, page ${i + 1}">`).join('')}</div>

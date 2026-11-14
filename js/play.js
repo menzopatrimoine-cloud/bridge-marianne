@@ -326,7 +326,9 @@ function declarerLead(st, seat) {
     for (let s = 0; s < 4; s++) {
       const x = info[s];
       if (!x.A.length || x.win === 0) continue;
-      if (x.A.length <= x.B.length && isMaster(st, st.declarer, x.A[0])) return { card: x.A[0], reason: 'Vous avez assez de levées : encaissez-les, en commençant par les honneurs de la main courte.' };
+      if (x.A.length <= x.B.length && isMaster(st, st.declarer, x.A[0])) return { card: x.A[0], reason: x.A.length < x.B.length
+        ? 'Vous avez assez de levées : encaissez-les, en commençant par les honneurs de la main courte (celle de vos deux mains, la vôtre ou le mort, qui a le moins de cartes dans cette couleur).'
+        : 'Vous avez assez de levées : encaissez-les.' };
     }
     for (let s = 0; s < 4; s++) {
       const x = info[s];
@@ -356,7 +358,9 @@ function declarerLead(st, seat) {
   }
   // 5) Encaisser une carte maîtresse, ou aller chez le partenaire encaisser les siennes
   const trumpsGone = tr < 0 || info[tr].out.length === 0;
-  for (let s = 0; s < 4; s++) if (info[s].A.length && isMaster(st, st.declarer, info[s].A[0]) && (s === tr || trumpsGone) && info[s].A.length <= Math.max(1, info[s].B.length)) return { card: info[s].A[0], reason: 'Encaissez d\'abord les honneurs de la main courte.' };
+  for (let s = 0; s < 4; s++) if (info[s].A.length && isMaster(st, st.declarer, info[s].A[0]) && (s === tr || trumpsGone) && info[s].A.length <= Math.max(1, info[s].B.length)) return { card: info[s].A[0], reason: info[s].A.length < info[s].B.length
+    ? 'Encaissez d\'abord les honneurs de la main courte (celle de vos deux mains qui a le moins de cartes dans cette couleur) : la couleur ne restera pas bloquée.'
+    : 'Encaissez cette carte maîtresse.' };
   const toPartner = [0, 1, 2, 3].filter(s => info[s].A.length && info[s].B.length && (s === tr || trumpsGone))
     .map(s => ({ s, n: info[s].B.filter(c => isMaster(st, st.declarer, c)).length - (isMaster(st, st.declarer, info[s].A[0]) ? 0 : 0) }))
     .filter(x => x.n > 0 && !isMaster(st, st.declarer, info[x.s].A[0])).sort((a, b) => b.n - a.n);

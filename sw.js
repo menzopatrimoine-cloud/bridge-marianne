@@ -1,8 +1,8 @@
 /* Service worker : l'application fonctionne sans internet une fois installée */
-const CACHE = 'bridge-marianne-v29';
+const CACHE = 'bridge-marianne-v31';
 const FILES = [
-  './', './index.html', './manifest.webmanifest', './css/style.css?v=29',
-  './js/core.js?v=29', './js/bidding.js?v=29', './js/dd.js?v=29', './js/play.js?v=29', './js/sound.js?v=29', './js/persos.js?v=29', './js/analyse.js?v=29', './js/missions.js?v=29', './js/lecons-data.js?v=29', './js/lecons.js?v=29', './js/app.js?v=29',
+  './', './index.html', './manifest.webmanifest', './css/style.css?v=31',
+  './js/core.js?v=31', './js/bidding.js?v=31', './js/dd.js?v=31', './js/play.js?v=31', './js/sound.js?v=31', './js/persos.js?v=31', './js/analyse.js?v=31', './js/missions.js?v=31', './js/lecons-data.js?v=31', './js/lecons.js?v=31', './js/app.js?v=31',
   './fonts/AHN-500.ttf', './fonts/AHN-700.ttf', './fonts/AHN-800.ttf',
   './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png',
   // les fiches du cours (images), pour les ouvrir sans internet
@@ -26,5 +26,5 @@ self.addEventListener('fetch', e => {
     const copy = resp.clone();
     caches.open(CACHE).then(c => c.put(e.request, copy));
     return resp;
-  }).catch(() => caches.match('./index.html'))));
+  }).catch(() => e.request.mode === 'navigate' ? caches.match('./index.html') : Response.error())));   // la page d'accueil seulement pour une page, jamais à la place d'un PDF ou d'une image
 });

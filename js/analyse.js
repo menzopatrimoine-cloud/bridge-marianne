@@ -60,11 +60,15 @@ async function reviewPlay(g, user, tick) {
   const st = startState(g);
   const seq = [];
   let pre = st.trick.length;   // mission : cartes déjà posées au départ, qui ne se rejouent pas
+  let k = -1;                   // rang de la carte dans la donne (les cartes jouées automatiquement en fin de donne ne sont pas jugées)
+  const auto = g.play.autoFrom != null ? g.play.autoFrom : Infinity;
   for (const t of g.play.tricks) {
     for (const x of t.cards) {
+      k++;
       if (pre > 0) { pre--; continue; }
       const item = { seat: x.seat, card: x.card };
-      if (user(x.seat) && B.legalCards(st, x.seat).length > 1) {
+      if (user(x.seat) && B.legalCards(st, x.seat).length > 1 && k >= auto) { item.auto = true; tick(); }
+      else if (user(x.seat) && B.legalCards(st, x.seat).length > 1) {
         const advice = B.chooseCard(B.cloneState(st), x.seat, { samples: 12 });
         item.advice = advice.card;
         if (st.hands[x.seat].length <= EXACT) {

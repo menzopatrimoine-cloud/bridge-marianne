@@ -135,7 +135,7 @@ function planOf(hands, ct) {
     const tops = [0, 1, 2, 3].map(s => topTricks(hands, decl, s)), sure = tops.reduce((x, y) => x + y, 0);
     const detail = [0, 1, 2, 3].filter(s => tops[s]).map(s => `${tops[s]} à ${SYM[s]}`).join(', ');
     const out = [`Il faut ${need} plis. Levées sûres : ${sure}${detail ? ' (' + detail + ')' : ''}.`];
-    if (sure >= need) out.push('Vous avez assez de levées : encaissez-les, en commençant par les honneurs de la main courte.');
+    if (sure >= need) out.push('Vous avez assez de levées : encaissez-les, en commençant par les honneurs de la main courte (dans chaque couleur, celle de vos deux mains qui a le moins de cartes).');
     else {
       const best = [0, 1, 2, 3].slice().sort((x, y) => (len(y) - tops[y] * 0.1) - (len(x) - tops[x] * 0.1))[0];
       out.push(`Il manque ${need - sure} pli${need - sure > 1 ? 's' : ''}. Cherchez-les dans votre couleur longue, ${SYM[best]} (${len(best)} cartes dans le camp) : affranchissez-la avant d'encaisser les autres couleurs, et gardez une reprise pour y revenir.`);
@@ -162,8 +162,9 @@ function planOf(hands, ct) {
     const ruff = [0, 1, 2, 3].filter(s => s !== tr && count(shortH, s) < count(longH, s) && count(shortH, tr) > 0);
     const disc = [0, 1, 2, 3].filter(s => s !== tr && count(shortH, s) > count(longH, s) && topTricks(hands, decl, s) > count(longH, s));
     out.push(`Il faut éliminer ${losers - allowed} perdante${losers - allowed > 1 ? 's' : ''}.`);
-    if (ruff.length) out.push(`Pensez à couper dans la main courte à ${ruff.map(s => SYM[s]).join(' ou ')}, avant de faire tomber tous les atouts.`);
-    if (disc.length) out.push(`Vous pouvez défausser des perdantes sur les levées à ${disc.map(s => SYM[s]).join(' ou ')} de la main courte.`);
+    const mc = 'la main courte (celle de vos deux mains qui a le moins d\'atouts, souvent le mort)';
+    if (ruff.length) out.push(`Pensez à couper à ${ruff.map(s => SYM[s]).join(' ou ')} dans ${mc}, avant de faire tomber tous les atouts.`);
+    if (disc.length) out.push(`Vous pouvez défausser des perdantes sur les levées à ${disc.map(s => SYM[s]).join(' ou ')} de ${ruff.length ? 'la main courte' : mc}.`);
     if (!ruff.length && !disc.length) out.push('Cherchez une impasse ou une couleur à affranchir.');
   }
   return out;

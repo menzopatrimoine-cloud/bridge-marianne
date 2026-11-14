@@ -164,7 +164,7 @@ const PERSOS = [
   // Marianne joue elle-même en Sud : elle a sa carte dans « Les personnages », mais n'est jamais tirée comme robot (joueuse: true)
   { name: 'Marianne', title: 'la maman de Menzo', joueuse: true,
     hello: 'Bonjour, je suis Marianne, la maman de Menzo. C\'est pour moi qu\'il a créé cette application : à cette table, c\'est moi qui joue en Sud !',
-    bio: 'La maman de Menzo. C\'est grâce à Elisabeth qu\'elle a découvert le bridge, et c\'est pour elle que l\'application a été créée : elle y joue en Sud, révise les fiches de Roger, et Tao, son chihuahua, n\'est jamais bien loin.',
+    bio: 'La maman de Menzo. C\'est pour elle que l\'application a été créée : elle y joue en Sud, révise les fiches de Roger, et Tao, son chihuahua, n\'est jamais bien loin.',
     gagne: 'Bien joué, mais je prendrai ma revanche !', perd: 'Bravo ! Je vais réviser mes fiches.',
     avecGagne: 'Bravo, partenaire ! Ce sont les fiches de Roger qui nous portent chance.', avecPerd: 'Pas grave, on refait une donne !',
     av: { bg: '#e3d9f2', skin: '#f2cdb4', hair: '#d8cdb8', style: 'court', outfit: 'gilet', cloth: '#3a5a8c', accent: '#f4efe4', earrings: 'perle', lips: true } },
