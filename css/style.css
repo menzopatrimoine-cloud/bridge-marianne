@@ -821,6 +821,13 @@ body.tel .fiche-view .fv-close { font-size: 18px; min-height: 54px; padding: 6px
 .fp-sub { margin: 12px 0 6px 4px; font-size: 19px; color: #1f5b42; }
 .fiche-plan .fiche-list { margin-bottom: 4px; }
 body.tel .page .fp-sec { font-size: 21px; }
+/* fiches complémentaires (pas de Roger) : en bleu */
+.page .fp-sec.compl { color: #1d3a75; margin-top: 34px; }
+.page .fp-sec.compl .fp-n { background: #2a4f9a; }
+.compl-box { background: #eef3fd; border: 2px solid #9db6e6; border-radius: 14px; padding: 4px 14px; margin: 0 0 10px; }
+.compl-box p { font-size: 18px; margin: 8px 0; }
+.btn.fiche-link.compl { color: #1d3a75; border-color: #9db6e6; background: #eef3fd; }
+.explain .fiche.compl { color: #1d3a75; }
 /* Le fantôme */
 .ghost-ico { color: #7b5bd6; }
 .toast .ico { width: 1.4em; height: 1.4em; vertical-align: -0.3em; margin-right: 6px; }

@@ -91,8 +91,12 @@ const seatName = s => s === 2 ? 'Vous' : nameOf(s);
 const chefOf = () => B.PERSOS.find(q => q.av.chef);
 const CHEF_BADGE = '<span class="chef-badge">★ Chef du bridge</span>';
 const CHEF_COURS = '<div class="chef-cours"><b>Le mardi :</b> cours intermédiaires et confirmés<br><b>Le jeudi :</b> cours débutants</div>';
-const FICHE_PAGES = { '01': 3, '02': 1, '03': 1, '04': 2, '05': 2, '06': 2, '07': 3, '08': 2, '09': 2, '10': 2, '11': 1, '12': 2, '13': 1, '14': 1, '15': 1, '16': 1, '17': 1 };
-const ficheBtn = f => FICHE_PAGES[f] ? `<button class="btn fiche-link" data-fiche="${f}">${ICONS.book}<span>Ouvrir la fiche du cours n° ${f} : ${rich(B.FICHES[f])}</span></button>` : '';
+const FICHE_PAGES = { '01': 3, '02': 1, '03': 1, '04': 2, '05': 2, '06': 2, '07': 3, '08': 2, '09': 2, '10': 2, '11': 1, '12': 2, '13': 1, '14': 1, '15': 1, '16': 1, '17': 1,
+  'C1': 1, 'C2': 1, 'C3': 1, 'C4': 1, 'C5': 1 };
+// les fiches complémentaires (C1 à C5) : écrites pour l'application, pour les situations que les fiches de Roger ne traitent pas
+const COMPL_IDS = ['C1', 'C2', 'C3', 'C4', 'C5'];
+const ficheLbl = f => B.isCompl(f) ? `Fiche complémentaire ${f}` : `Fiche du cours n° ${f}`;
+const ficheBtn = f => FICHE_PAGES[f] ? `<button class="btn fiche-link ${B.isCompl(f) ? 'compl' : ''}" data-fiche="${f}">${ICONS.book}<span>Ouvrir la ${ficheLbl(f).replace(/^F/, 'f')} : ${rich(B.FICHES[f])}</span></button>` : '';
 function callHTML(c, long) {
   if (c === 'P') return 'Passe';
   if (c === 'X') return 'Contre';
@@ -331,9 +335,9 @@ const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.p
 function printPdf(href) {
   if (!isIOS()) { window.open(href, '_blank', 'noopener'); return; }
   if (document.querySelector('.pdf-ov')) return;   // déjà ouverte (double toucher)
-  const num = (href.match(/fiche-(\d+)/) || [])[1];
-  const what = num ? `la fiche n° ${num}` : 'tout le cours';
-  const name = num ? `Fiche ${num} du cours de bridge.pdf` : 'Cours de bridge complet.pdf';
+  const num = (href.match(/fiche-(\d+|C\d)\./) || [])[1] || (/fiches-complementaires/.test(href) ? 'compl' : null);
+  const what = num === 'compl' ? 'les fiches complémentaires' : num && B.isCompl(num) ? `la fiche complémentaire ${num}` : num ? `la fiche n° ${num}` : 'tout le cours';
+  const name = num === 'compl' ? 'Fiches complémentaires de bridge.pdf' : num && B.isCompl(num) ? `Fiche complémentaire ${num} de bridge.pdf` : num ? `Fiche ${num} du cours de bridge.pdf` : 'Cours de bridge complet.pdf';
   const v = document.createElement('div');
   v.className = 'overlay pdf-ov';
   v.innerHTML = `<div class="sheet"><h2>Imprimer ${what}</h2>
@@ -374,7 +378,7 @@ function printPdf(href) {
 }
 // solution de secours (ancien iPad, ou PDF indisponible) : on imprime les images des fiches avec la fenêtre d'impression
 function printImages(num) {
-  const ids = num ? [num] : FICHE_PLAN.flatMap(sec => sec.s.flatMap(ss => ss.f.map(x => x.split(':')[0]))).filter((k, i, a) => a.indexOf(k) === i);
+  const ids = num === 'compl' ? COMPL_IDS : num ? [num] : FICHE_PLAN.flatMap(sec => sec.s.flatMap(ss => ss.f.map(x => x.split(':')[0]))).filter((k, i, a) => a.indexOf(k) === i);
   let area = document.getElementById('print-area');
   if (area) area.remove();
   area = document.createElement('div');
@@ -424,11 +428,15 @@ function renderFiches() {
   $app.innerHTML = `<div class="page"><div class="inner">
     <button class="btn back ${inGame ? 'sticky' : ''}" data-act="${backAct()}">${inGame ? '← Retour au jeu' : '← Retour'}</button>
     <h1>Les fiches du cours</h1>
-    <div class="chef-box">${B.avatarSVG(chefOf())}<div><div class="pc-n"><b>Roger</b>${CHEF_BADGE}</div><p>Les fiches du cours ont été créées par Roger, le chef du bridge de l'Hippocampe.</p></div></div>
+    <div class="chef-box">${B.avatarSVG(chefOf())}<div><div class="pc-n"><b>Roger</b>${CHEF_BADGE}</div><p>Les fiches du cours ont été créées par Roger, le chef du bridge de l'Hippocampe. Les fiches complémentaires, en bas de la page, ont été écrites pour l'application.</p></div></div>
     <p>Toutes les fiches d'apprentissage, en gros caractères, <b>dans l'ordre des enchères</b> : l'ouverture, la réponse du partenaire, la 2ème enchère de l'ouvreur, puis celle du partenaire. Touchez une fiche pour l'ouvrir en grand.</p>
     <div class="pdf-all">${pdfLink(`fiches/pdf/cours-complet.pdf?v=${PDF_V}`, 'Imprimer tout le cours (PDF)', 'gold')}</div>
     <p class="pdf-how">Pour imprimer une seule fiche, touchez « PDF » à côté d'elle, puis « Imprimer » : vous restez dans l'application.</p>
     ${ficheListHTML()}
+    <h2 class="fp-sec compl"><span class="fp-n">+</span>Les fiches complémentaires</h2>
+    <div class="compl-box"><p>Ces ${COMPL_IDS.length} fiches <b>ne sont pas de Roger</b> : elles ont été écrites pour l'application, pour les situations que ses fiches ne traitent pas (la suite des enchères, la compétition, la défense). Le Conseil les ouvre quand c'est le cas. Elles suivent le système enseigné dans les clubs en France : si un point vous étonne, demandez à Roger.</p></div>
+    <div class="fiche-list">${COMPL_IDS.map(ficheRow).join('')}</div>
+    <div class="pdf-all">${pdfLink(`fiches/pdf/fiches-complementaires.pdf?v=${PDF_V}`, 'Imprimer les fiches complémentaires (PDF)')}</div>
   </div></div>`;
 }
 function renderMissions() {
@@ -1025,7 +1033,7 @@ function submitCall(call, force) {
 function deviation(h, call) {
   const g = G.game;
   const mine = B.explainCall(g.auction, g.dealer, call);
-  modal(`<h2>Le cours conseille plutôt ${callHTML(h.call, true)}</h2>
+  modal(`<h2>${B.isCompl(h.m.fiche) ? `La fiche complémentaire ${h.m.fiche}` : 'Le cours'} conseille plutôt ${callHTML(h.call, true)}</h2>
     <p><b>${h.m.name === callWords(h.call) || h.m.name === 'Passe' ? callHTML(h.call, true) : callHTML(h.call, true) + ' : ' + rich(h.m.name)}.</b> ${rich(h.m.text)}</p>
     <p style="color:var(--muted)">Votre enchère ${callHTML(call, true)} signifierait : ${rich(mine.name)}${mine.text ? ' — ' + rich(mine.text) : '.'}</p>
     ${h.m.fiche ? ficheBtn(h.m.fiche) : ''}
@@ -1611,7 +1619,7 @@ function explainHTML() {
     ${pts ? `<div class="pts">${pts}</div>` : ''}
     ${forcing ? `<div class="forcing">${forcing}</div>` : ''}
     ${m.text ? `<div class="txt">${rich(m.text)}</div>` : ''}
-    ${m.fiche ? `<button class="fiche" data-fiche="${m.fiche}">${ICONS.book}<span>Fiche du cours n° ${m.fiche} : ${rich(B.FICHES[m.fiche])} <u>Ouvrir</u></span></button>` : ''}
+    ${m.fiche ? `<button class="fiche ${B.isCompl(m.fiche) ? 'compl' : ''}" data-fiche="${m.fiche}">${ICONS.book}<span>${ficheLbl(m.fiche)} : ${rich(B.FICHES[m.fiche])} <u>Ouvrir</u></span></button>` : ''}
   </div>`;
 }
 const ICONS = {
@@ -2022,7 +2030,7 @@ function renderHelp() {
     <ul>
       <li>Quand c'est à vous, la boîte d'enchères apparaît au milieu du tapis : touchez d'abord le <b>palier</b> (1 à 7), puis la <b>couleur</b> (${su(3)} ${su(2)} ${su(1)} ${su(0)} ou SA).</li>
       <li>Les boutons <b>Passe</b>, <b>Contre</b> et <b>Surcontre</b> sont juste en dessous.</li>
-      <li>Dans le tableau des enchères à droite (sur téléphone : bouton « Enchères » en bas), <b>touchez une enchère</b> pour voir ce qu'elle veut dire : nombre de points, nombre de cartes dans chaque couleur, et la fiche du cours qui en parle. Un rond orange <span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:#e8590c;color:#fff;text-align:center;font-size:14px;line-height:20px">!</span> signale une enchère conventionnelle (alerte).</li>
+      <li>Dans le tableau des enchères à droite (sur téléphone : bouton « Enchères » en bas), <b>touchez une enchère</b> pour voir ce qu'elle veut dire : nombre de points, nombre de cartes dans chaque couleur, et la fiche qui en parle (une fiche du cours de Roger, ou une fiche complémentaire écrite pour l'application). Un rond orange <span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:#e8590c;color:#fff;text-align:center;font-size:14px;line-height:20px">!</span> signale une enchère conventionnelle (alerte).</li>
       <li>Si votre enchère s'écarte du cours, l'application vous le signale et vous laisse choisir (réglable).</li>
     </ul>
     <h2>Le jeu de la carte</h2>
@@ -2048,7 +2056,7 @@ function renderHelp() {
     </ul>
     <h2>Les boutons</h2>
     <ul>
-      <li><b>Conseil</b> : pendant les enchères, la fiche du cours s'ouvre d'abord pour que vous réfléchissiez ; touchez « Voir la réponse » si vous voulez l'enchère recommandée. Pendant le jeu, la carte que le cours recommande, avec la raison.</li>
+      <li><b>Conseil</b> : pendant les enchères, la fiche qui en parle s'ouvre d'abord pour que vous réfléchissiez ; touchez « Voir la réponse » si vous voulez l'enchère recommandée. Pendant le jeu, la carte que le cours recommande, avec la raison.</li>
       <li><b>Annuler</b> : revenir avant votre dernière enchère ou votre dernière carte.</li>
       <li><b>Dernier pli</b> : revoir les 4 cartes du pli précédent.</li>
       <li><b>Réclamer</b> : terminer la donne quand toutes vos cartes sont maîtresses.</li>
@@ -2258,7 +2266,7 @@ function renderAnalysis() {
   const ct = g.contract, r = g.result;
   const items = [];
   a.bids.forEach(b => items.push(`<li><div class="an-k">Enchères · votre ${ordinal(b.nth)} enchère</div>
-    Vous avez dit <b>${callHTML(b.call, true)}</b> ; ${b.sure ? 'le cours conseillait' : 'le robot aurait dit'} <b>${callHTML(b.best, true)}</b>.
+    Vous avez dit <b>${callHTML(b.call, true)}</b> ; ${b.sure ? (B.isCompl(b.m.fiche) ? `la fiche complémentaire ${b.m.fiche} conseillait` : 'le cours conseillait') : 'le robot aurait dit'} <b>${callHTML(b.best, true)}</b>.
     <div class="an-why">${callHTML(b.best, true)} : ${rich(b.m.name)}. ${rich(b.m.text)}</div>
     ${b.mine && b.mine.name && b.call !== 'P' ? `<div class="an-mine">Votre ${callHTML(b.call, true)} voulait dire : ${rich(b.mine.name)}.</div>` : ''}
     ${b.sure && b.m.fiche ? ficheBtn(b.m.fiche) : ''}</li>`));
@@ -2783,11 +2791,11 @@ function openFiche(id, think, page) {
   const inGame = screen === 'game';
   const v = document.createElement('div');
   v.className = 'fiche-view';
-  v.innerHTML = `<div class="bar"><div class="ttl">Fiche du cours n° ${id}<small>${rich(B.FICHES[id])}</small></div>
+  v.innerHTML = `<div class="bar"><div class="ttl">${ficheLbl(id)}<small>${rich(B.FICHES[id])}</small></div>
     ${pdfLink(fichePdf(id), 'PDF')}<button class="btn" data-z="-1">A−</button><button class="btn" data-z="1">A+</button><button class="btn primary" data-close>Fermer</button></div>
     ${think ? `<div class="fiche-think"><div class="ft-txt"><b>Réfléchissez avec la fiche.</b> Votre main : ${[0, 1, 2, 3].map(s => `<span class="ft-s">${su(s)} ${B.ranksIn(think.hand, s).map(x => B.RANK_TXT[x]).join(' ') || '—'}</span>`).join('')}<span class="ft-p"><b>${B.hcp(think.hand)} points H</b>, ${B.HL(think.hand)} points HL</span></div>
       <button class="btn gold" data-answer>Voir la réponse</button></div>` : ''}
-    <div class="pages">${Array.from({ length: n }, (_, i) => `<img src="fiches/f${id}-${i + 1}.jpg?v=${IMG_V[id] || 4}" alt="Fiche ${id}, page ${i + 1}">`).join('')}</div>
+    <div class="pages">${Array.from({ length: n }, (_, i) => `<img src="fiches/f${id}-${i + 1}.jpg?v=${IMG_V[id] || 4}" alt="${ficheLbl(id)}, page ${i + 1}">`).join('')}</div>
     <button class="btn primary fv-close" data-close>✕ Fermer la fiche${inGame ? ' et revenir au jeu' : ''}</button>`;
   document.body.appendChild(v);
   snd('select');

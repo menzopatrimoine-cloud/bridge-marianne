@@ -18,7 +18,12 @@ const FICHES = {
   '09': 'Jeu de la carte', '10': 'Interventions en 2ème position', '11': 'Ouverture 1 SA et Stayman',
   '12': 'Barrages niveaux 3 et 4', '13': 'Réponses au contre d\'intervention',
   '14': 'Après ouverture 1 SA : Stayman et Texas', '15': 'Règle des 9', '16': 'Table de décision', '17': 'Intervention sur 1 SA : le Landy',
+  // fiches complémentaires, écrites pour l'application (pas par Roger) : les situations que le cours ne traite pas
+  'C1': 'La suite des enchères sans intervention', 'C2': 'La compétition après notre ouverture',
+  'C3': 'La 2ème enchère de l\'intervenant', 'C4': 'Répondre à l\'intervention du partenaire',
+  'C5': 'En défense : se taire, intervenir plus tard ou se réveiller',
 };
+const isCompl = f => typeof f === 'string' && f[0] === 'C';
 
 /* ---------- Sens d'une enchère ---------- */
 const ANY = [0, 13];
@@ -82,7 +87,7 @@ function explainAt(auction, dealer, i) {
   const c = ctx(auction.slice(0, i), dealer);
   const call = auction[i];
   let m = null;
-  const opts = systemOptions(c);
+  const opts = systemOptions(c) || complOptions(c);
   if (opts) { const o = opts.find(o => o.call === call); if (o) m = o.m; }
   if (!m) m = genericMeaning(c, call);
   memo.set(key, m);
@@ -553,14 +558,17 @@ function openerRebid1(c) {
       text: `Main forte (19 points HL et plus) avec 4 cartes ou plus à ${nm(t)}. Forcing de manche.` }), h => HL(h) >= 19 && L(h, t) >= 4 && L(h, rs) < 4 && bestSecond(h, os, rs) === t));
   }
   o.push(...secondSuitOpts(c, os, r));
+  // Unicolore majeur fort : la manche directe (comme après 1SA)
+  if (major && isLegal('4' + od, c.auction, c.dealer) && !o.some(x => x.call === '4' + od)) o.push(opt('4' + od, M('Manche : 6 cartes et main forte', { pts: [19, 23], unit: 'HL', len: ln({ [od]: [6, 13] }), fiche: '05', conclusion: true,
+    text: `Au moins 6 cartes à ${nm(os)} et 19 points HL ou plus.` }), h => L(h, os) >= 6 && HL(h) >= 19));
   // Répétition
   const rep = cheapest(c, od);
   if (rep) {
     const jr = bidOf(levelOf(rep) + 1, os);
     if (levelOf(jr) <= 3) o.push(opt(jr, M('Répétition à saut', { pts: [16, 18], unit: 'HL', len: ln({ [od]: [6, 13] }), fiche: '05',
       text: `Au moins 6 cartes à ${nm(os)} et 16 à 18 points HL.` }), h => L(h, os) >= 6 && HL(h) >= 16 && HL(h) <= 18));
-    o.push(opt(rep, M('Répétition de la couleur', { pts: [12, 15], unit: 'HL', len: ln({ [od]: [major ? 6 : 5, 13] }), fiche: '05',
-      text: `Au moins ${major ? 6 : 5} cartes à ${nm(os)}, jeu minimum.` }), h => L(h, os) >= (major ? 6 : 5) && HL(h) <= 15));
+    o.push(opt(rep, M('Répétition de la couleur', { pts: [12, 15], unit: 'HL', len: ln({ [od]: [5, 13] }), fiche: '05',
+      text: `Au moins ${major ? '6 cartes (parfois 5, faute de mieux)' : '5 cartes'} à ${nm(os)}, jeu minimum.` }), h => L(h, os) >= (major ? 6 : 5) && HL(h) <= 15));
   }
   // Solutions de repli
   if (rl === 1) o.push(opt('1N', o.find(x => x.call === '1N').m, h => hcp(h) <= 15));
@@ -975,6 +983,7 @@ function overcallOpts(c) {
     for (const [lv, n] of [[3, 7], [4, 8]]) {
       const call = bidOf(lv, s);
       if (bidRank(call) <= bidRank(ch)) continue;
+      if (direct && od !== 'C' && call === '3C') continue;   // 3♣ = bicolore des couleurs extrêmes (une seule signification)
       o.push(opt(call, M('Barrage au palier de ' + lv, { pts: [6, 10], unit: 'H', len: ln({ [dn(s)]: [n, 13] }), fiche: '10',
         text: `Barrage : ${n} cartes à ${nm(s)}, jeu faible.` }), h => (lv === 3 ? L(h, s) === 7 : L(h, s) >= 8) && hcp(h) >= 5 && hcp(h) <= 10));
     }
@@ -987,7 +996,7 @@ function overcallOpts(c) {
     if (!call) continue;
     if (levelOf(call) === 1) o.push(opt(call, M('Intervention au palier de 1', { pts: [9, 17], unit: 'HL', len: ln({ [dn(s)]: [5, 13] }), fiche: '10',
       text: `Au moins 5 cartes à ${nm(s)}. Valeur d'ouverture (13 à 17 HL), ou 11-12 HL avec une bonne couleur, ou 9-11 HL pour gêner.` }),
-      h => L(h, s) >= 5 && HL(h) >= (direct ? 9 : 11) && HL(h) <= 17 && bestS(h) === s));
+      h => L(h, s) >= 5 && HL(h) >= (direct || balancing ? 9 : 11) && HL(h) <= 17 && bestS(h) === s));
     else if (levelOf(call) === 2) o.push(opt(call, M('Intervention au palier de 2 (sans saut)', { pts: [12, 17], unit: 'HL', len: ln({ [dn(s)]: [5, 13] }), fiche: '10',
       text: `Valeur d'ouverture et belle couleur de 6 cartes à ${nm(s)} (ou 5 cartes très solides).` }),
       h => HL(h) >= 12 && HL(h) <= 17 && ((L(h, s) >= 6 && robust(h, s)) || (L(h, s) === 5 && honors(h, s) >= 3)) && bestS(h) === s));
@@ -1238,7 +1247,8 @@ function systemOptions(c) {
       if (s === '2D P') return resp2D(c);
       if (/^2[HS] P$/.test(s)) return respWeak2(c);
       if (/^[34][CDHS] P$/.test(s)) return respBarrage(c);
-      if (/^1[CDHS] (X|1[DHSN]|2[CDHSN]|3[CDHS])$/.test(s)) return respAfterInterf(c);
+      // après une intervention adverse sur notre ouverture : fiche complémentaire C2 (le cours n'en parle pas)
+      if (/^1[CDHS] (X|1[DHSN]|2[CDHSN]|3[CDHS])$/.test(s) && !COMPL.C2) return respAfterInterf(c);
       return null;
     }
     if (myBids === 1) {
@@ -1276,7 +1286,7 @@ function systemOptions(c) {
   if (lm && iActed) return landyRebidOpts(c, lm[1]);
   if (!partnerActed && !iActed) {
     if (/^1[CDHS]( P P)?$/.test(s)) return overcallOpts(c);
-    if (/^1[CDHS] P (1[DHSN]|2[CDH])$/.test(s)) return overcallOpts(c);
+    if (/^1[CDHS] P (1[DHSN]|2[CDH])$/.test(s) && c.seq[2] !== '2' + c.seq[0][1]) return overcallOpts(c);
     if (/^1N( P P)?$/.test(s)) return over1NOpts(c);
     if (/^(2[HS]|3[CDHS])( P P)?$/.test(s)) return overPreemptOpts(c);
     return null;
@@ -1284,14 +1294,40 @@ function systemOptions(c) {
   if (partnerActed && !iActed) {
     let m;
     const pm = summarize(c, c.partner);
+    if ((m = /^1([CDHS]) X P$/.exec(s)) || (m = /^1([CDHS]) P P X P$/.exec(s))) return respToDoubleOpts(c, m[1]);
+    // répondre à l'intervention du partenaire : fiche complémentaire C4 (le cours n'en parle pas)
+    if (COMPL.C4) return null;
     if (c.auction[c.n - 1] === 'P' && [0, 1, 2, 3].filter(t => pm.len[t][0] >= 5).length === 2) {
       const bo = advanceBicoloreOpts(c, pm);
       if (bo) return bo;
     }
-    if ((m = /^1([CDHS]) X P$/.exec(s)) || (m = /^1([CDHS]) P P X P$/.exec(s))) return respToDoubleOpts(c, m[1]);
     if (/^1[CDHS] (1[DHS]|2[CDHS]) P$/.test(s) && c.seq[1] !== '2' + c.seq[0][1]) return advanceOvercallOpts(c);
   }
   return null;
+}
+
+/* ====================================================================
+   FICHES COMPLÉMENTAIRES C1 à C5 (js/fiches-compl.js) : les situations que les fiches du cours ne traitent pas.
+   Chaque situation relève d'une seule fiche complémentaire (partage sans recouvrement) ; le module de la fiche
+   enregistre ses options dans B.COMPL[id] (même forme que les options du cours : enchère, sens, condition).
+   ==================================================================== */
+const COMPL = B.COMPL = B.COMPL || {};
+function complId(c) {
+  if (c.role === 'open') return null;
+  const side = sideOf(c.seat);
+  if (c.role === 'opener' || c.role === 'responder')
+    return c.calls.some(x => sideOf(x.seat) !== side && x.call !== 'P') ? 'C2' : 'C1';
+  const first = c.calls.find(x => sideOf(x.seat) === side && x.call !== 'P');
+  if (!first) return 'C5';
+  return first.seat === c.seat ? 'C3' : 'C4';
+}
+function complOptions(c) {
+  const id = complId(c);
+  const f = id && COMPL[id];
+  if (typeof f !== 'function') return null;
+  let o = null;
+  try { o = f(c); } catch (e) { o = null; }
+  return o && o.length ? o : null;
 }
 
 /* ====================================================================
@@ -1473,7 +1509,7 @@ function genericMeaning(c, call) {
    ==================================================================== */
 function decide(hand, auction, dealer) {
   const c = ctx(auction, dealer);
-  const opts = systemOptions(c);
+  const opts = systemOptions(c) || complOptions(c);
   if (opts) for (const o of opts) {
     if (!isLegal(o.call, auction, dealer)) continue;
     let ok = false;
@@ -1510,5 +1546,11 @@ function forcingText(m) {
   return m.forcing === 2 ? 'Forcing de manche' : m.forcing === 1 ? 'Forcing (le partenaire doit reparler)' : null;
 }
 
-Object.assign(B, { FICHES, decide, explain, explainCall, lenText, ptsText, forcingText, bidCtx: ctx, summarizeSeat: summarize });
+B.clearBidMemo = () => memo.clear();
+Object.assign(B, { FICHES, isCompl, decide, explain, explainCall, lenText, ptsText, forcingText, bidCtx: ctx, summarizeSeat: summarize, complId });
+// outils pour les modules des fiches complémentaires (js/fiches-compl.js)
+B.BH = { ANY, SK, ln, M, opt, L, sym, nm, dn, bidOf, cheapest, natSuitsOf, summarize, agreedTrump, gameLevelOf, explainAt, complId,
+  // anciennes réponses (avant les fiches complémentaires), réutilisables : respAfterInterf (C2), advanceOvercallOpts, advanceBicoloreOpts (C4)
+  respAfterInterf, respMajor, respMinor, advanceOvercallOpts, advanceBicoloreOpts, respToDoubleOpts, overcallOpts, takeoutOk,
+  genericCall: (c, h) => { const g = genericDecide(c, h); return isLegal(g.call, c.auction, c.dealer) ? g.call : 'P'; } };
 })();
