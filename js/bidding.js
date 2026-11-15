@@ -540,7 +540,13 @@ function openerRebid1(c) {
   // Sans-Atout
   if (rl === 1) {
     // retour à SA avec un jeu régulier (5-3-3-2) : 1SA 12-14, 2SA 15-17, 3SA 18 et plus (fiche 05, ajout du professeur)
-    o.push(opt('3N', M('Retour à SA : 3SA', { pts: [18, 21], unit: 'H', fiche: '05', conclusion: true, text: 'Jeu régulier (5-3-3-2 par exemple) de 18 points H ou plus.' }), h => isRegular(h) && hcp(h) >= 18));
+    o.push(opt('3N', M('Retour à SA : 3SA', { pts: [17, 21], unit: 'H', fiche: '05', conclusion: true,
+      text: 'Jeu régulier (5-3-3-2 par exemple) de 18 points H ou plus. Fiche complémentaire C1 : aussi avec une mineure de 6 cartes, 19 points HL ou plus et un arrêt dans chaque couleur non nommée.' }), h => isRegular(h) && hcp(h) >= 18));
+    // fiche complémentaire C1 : mineure de 6 cartes et main forte (le cours ne prévoit que la répétition, 12 à 18 points)
+    const unbid = [0, 1, 2, 3].filter(s => s !== os && s !== rs);
+    if (!major) o.push(opt('3N', M('Retour à SA : 3SA', { pts: [16, 21], unit: 'H', len: ln({ [od]: [6, 13] }), fiche: 'C1', conclusion: true,
+      text: `Mineure de 6 cartes ou plus à ${nm(os)}, 19 points HL ou plus, un arrêt dans chaque couleur non nommée${rs <= 1 ? ` et pas 3 cartes à ${nm(rs)}` : ''} : 3 SA.` }),
+      h => L(h, os) >= 6 && HL(h) >= 19 && unbid.every(s => stopper(h, s)) && !(rs <= 1 && L(h, rs) >= 3)));
     o.push(opt('2N', M('Retour à SA : 2SA', { pts: [15, 17], unit: 'H', fiche: '05', text: 'Jeu régulier (5-3-3-2 par exemple) de 15 à 17 points H.' }), h => isRegular(h) && hcp(h) >= 15 && hcp(h) <= 17));
     o.push(opt('1N', M('Retour à SA : 1SA', { pts: [12, 14], unit: 'H', fiche: '05', text: 'Jeu régulier minimum (12 à 14 points H), sans fit.' }), h => isRegular(h) && hcp(h) <= 14));
   } else {

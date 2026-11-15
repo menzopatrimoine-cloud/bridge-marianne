@@ -325,7 +325,7 @@ function missionSlipCheck(seat, card) {
   } catch (e) { return false; }
 }
 // les fiches en PDF, prêtes à imprimer (un onglet s'ouvre ; sur l'iPad : Partager, puis Imprimer)
-const PDF_V = 5;   // à augmenter quand une fiche PDF change
+const PDF_V = 6;   // à augmenter quand une fiche PDF change
 const fichePdf = k => `fiches/pdf/fiche-${k}.pdf?v=${PDF_V}`;
 const pdfLink = (href, label, cls) => `<button class="btn pdf-btn ${cls || ''}" data-pdf="${href}">${ICONS.print}<span>${label}</span></button>`;
 // Imprimer une fiche sans quitter l'application. Sur l'iPad (et l'iPhone), ouvrir le PDF directement, dans l'appli installée
@@ -2782,7 +2782,7 @@ $app.addEventListener('click', e => {
   }
 });
 // une fiche du cours, en grand, par-dessus le jeu (images en cache : marche sans internet)
-const IMG_V = { '05': 5, '11': 6, '13': 6, '14': 7 };   // version des images d'une fiche refaite (cache de l'iPad)
+const IMG_V = { '05': 5, '11': 6, '13': 6, '14': 7, 'C1': 5 };   // version des images d'une fiche refaite (cache de l'iPad)
 function openFiche(id, think, page) {
   const n = FICHE_PAGES[id];
   if (!n) return;
