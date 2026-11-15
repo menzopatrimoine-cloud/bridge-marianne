@@ -91,7 +91,7 @@ const seatName = s => s === 2 ? 'Vous' : nameOf(s);
 const chefOf = () => B.PERSOS.find(q => q.av.chef);
 const CHEF_BADGE = '<span class="chef-badge">★ Chef du bridge</span>';
 const CHEF_COURS = '<div class="chef-cours"><b>Le mardi :</b> cours intermédiaires et confirmés<br><b>Le jeudi :</b> cours débutants</div>';
-const FICHE_PAGES = { '01': 1, '02': 1, '03': 1, '04': 1, '05': 1, '06': 1, '07': 2, '08': 1, '09': 1, '10': 1, '11': 1, '12': 1, '13': 1, '14': 1, '15': 1, '16': 1, '17': 1,
+const FICHE_PAGES = { '01': 3, '02': 1, '03': 1, '04': 1, '05': 1, '06': 1, '07': 2, '08': 1, '09': 1, '10': 1, '11': 1, '12': 1, '13': 1, '14': 1, '15': 1, '16': 1, '17': 1,
   'C1': 1, 'C2': 1, 'C3': 1, 'C4': 1, 'C5': 1 };
 // les fiches complémentaires (C1 à C5) : écrites pour l'application, pour les situations que les fiches de Roger ne traitent pas
 const COMPL_IDS = ['C1', 'C2', 'C3', 'C4', 'C5'];
@@ -325,7 +325,7 @@ function missionSlipCheck(seat, card) {
   } catch (e) { return false; }
 }
 // les fiches en PDF, prêtes à imprimer (un onglet s'ouvre ; sur l'iPad : Partager, puis Imprimer)
-const PDF_V = 8;   // à augmenter quand une fiche PDF change
+const PDF_V = 7;   // à augmenter quand une fiche PDF change
 const fichePdf = k => `fiches/pdf/fiche-${k}.pdf?v=${PDF_V}`;
 const pdfLink = (href, label, cls) => `<button class="btn pdf-btn ${cls || ''}" data-pdf="${href}">${ICONS.print}<span>${label}</span></button>`;
 // Imprimer une fiche sans quitter l'application. Sur l'iPad (et l'iPhone), ouvrir le PDF directement, dans l'appli installée
@@ -2782,7 +2782,7 @@ $app.addEventListener('click', e => {
   }
 });
 // une fiche du cours, en grand, par-dessus le jeu (images en cache : marche sans internet)
-const IMG_V = { '01': 5, '04': 5, '05': 6, '06': 5, '07': 5, '08': 5, '09': 5, '10': 5, '11': 6, '12': 5, '13': 6, '14': 7, 'C1': 5 };   // version des images d'une fiche refaite (cache de l'iPad)
+const IMG_V = { '04': 5, '05': 6, '06': 5, '07': 5, '08': 5, '09': 5, '10': 5, '11': 6, '12': 5, '13': 6, '14': 7, 'C1': 5 };   // version des images d'une fiche refaite (cache de l'iPad)
 function openFiche(id, think, page) {
   const n = FICHE_PAGES[id];
   if (!n) return;

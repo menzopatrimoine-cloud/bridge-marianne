@@ -1,20 +1,20 @@
 /* Service worker : l'application fonctionne sans internet une fois installée */
-const CACHE = 'bridge-marianne-v35';
+const CACHE = 'bridge-marianne-v34';
 const FILES = [
-  './', './index.html', './manifest.webmanifest', './css/style.css?v=35',
-  './js/core.js?v=35', './js/bidding.js?v=35', './js/fiches-compl.js?v=35', './js/dd.js?v=35', './js/play.js?v=35', './js/sound.js?v=35', './js/persos.js?v=35', './js/analyse.js?v=35', './js/missions.js?v=35', './js/lecons-data.js?v=35', './js/lecons.js?v=35', './js/app.js?v=35',
+  './', './index.html', './manifest.webmanifest', './css/style.css?v=34',
+  './js/core.js?v=34', './js/bidding.js?v=34', './js/fiches-compl.js?v=34', './js/dd.js?v=34', './js/play.js?v=34', './js/sound.js?v=34', './js/persos.js?v=34', './js/analyse.js?v=34', './js/missions.js?v=34', './js/lecons-data.js?v=34', './js/lecons.js?v=34', './js/app.js?v=34',
   './fonts/AHN-500.ttf', './fonts/AHN-700.ttf', './fonts/AHN-800.ttf',
   './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png',
   // les fiches du cours (images), pour les ouvrir sans internet
-  './fiches/f01-1.jpg?v=5', './fiches/f02-1.jpg?v=4', './fiches/f03-1.jpg?v=4',
+  './fiches/f01-1.jpg?v=4', './fiches/f01-2.jpg?v=4', './fiches/f01-3.jpg?v=4', './fiches/f02-1.jpg?v=4', './fiches/f03-1.jpg?v=4',
   './fiches/f04-1.jpg?v=5', './fiches/f05-1.jpg?v=6', './fiches/f06-1.jpg?v=5',
   './fiches/f07-1.jpg?v=5', './fiches/f07-2.jpg?v=5', './fiches/f08-1.jpg?v=5',
   './fiches/f09-1.jpg?v=5', './fiches/f10-1.jpg?v=5', './fiches/f11-1.jpg?v=6',
   './fiches/f12-1.jpg?v=5', './fiches/f13-1.jpg?v=6', './fiches/f14-1.jpg?v=7', './fiches/f15-1.jpg?v=4', './fiches/f16-1.jpg?v=4', './fiches/f17-1.jpg?v=4',
   './fiches/fC1-1.jpg?v=5', './fiches/fC2-1.jpg?v=4', './fiches/fC3-1.jpg?v=4', './fiches/fC4-1.jpg?v=4', './fiches/fC5-1.jpg?v=4',
   // les mêmes fiches en PDF, à imprimer
-  './fiches/pdf/cours-complet.pdf?v=8', './fiches/pdf/fiche-01.pdf?v=8', './fiches/pdf/fiche-02.pdf?v=8', './fiches/pdf/fiche-03.pdf?v=8', './fiches/pdf/fiche-04.pdf?v=8', './fiches/pdf/fiche-05.pdf?v=8', './fiches/pdf/fiche-06.pdf?v=8', './fiches/pdf/fiche-07.pdf?v=8', './fiches/pdf/fiche-08.pdf?v=8', './fiches/pdf/fiche-09.pdf?v=8', './fiches/pdf/fiche-10.pdf?v=8', './fiches/pdf/fiche-11.pdf?v=8', './fiches/pdf/fiche-12.pdf?v=8', './fiches/pdf/fiche-13.pdf?v=8', './fiches/pdf/fiche-14.pdf?v=8', './fiches/pdf/fiche-15.pdf?v=8', './fiches/pdf/fiche-16.pdf?v=8', './fiches/pdf/fiche-17.pdf?v=8',
-  './fiches/pdf/fiches-complementaires.pdf?v=8', './fiches/pdf/fiche-C1.pdf?v=8', './fiches/pdf/fiche-C2.pdf?v=8', './fiches/pdf/fiche-C3.pdf?v=8', './fiches/pdf/fiche-C4.pdf?v=8', './fiches/pdf/fiche-C5.pdf?v=8',
+  './fiches/pdf/cours-complet.pdf?v=7', './fiches/pdf/fiche-01.pdf?v=7', './fiches/pdf/fiche-02.pdf?v=7', './fiches/pdf/fiche-03.pdf?v=7', './fiches/pdf/fiche-04.pdf?v=7', './fiches/pdf/fiche-05.pdf?v=7', './fiches/pdf/fiche-06.pdf?v=7', './fiches/pdf/fiche-07.pdf?v=7', './fiches/pdf/fiche-08.pdf?v=7', './fiches/pdf/fiche-09.pdf?v=7', './fiches/pdf/fiche-10.pdf?v=7', './fiches/pdf/fiche-11.pdf?v=7', './fiches/pdf/fiche-12.pdf?v=7', './fiches/pdf/fiche-13.pdf?v=7', './fiches/pdf/fiche-14.pdf?v=7', './fiches/pdf/fiche-15.pdf?v=7', './fiches/pdf/fiche-16.pdf?v=7', './fiches/pdf/fiche-17.pdf?v=7',
+  './fiches/pdf/fiches-complementaires.pdf?v=7', './fiches/pdf/fiche-C1.pdf?v=7', './fiches/pdf/fiche-C2.pdf?v=7', './fiches/pdf/fiche-C3.pdf?v=7', './fiches/pdf/fiche-C4.pdf?v=7', './fiches/pdf/fiche-C5.pdf?v=7',
 ];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
